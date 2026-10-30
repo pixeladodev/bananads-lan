@@ -13,13 +13,13 @@ MELON_SHA=$(manifest melonds)
 WANT=$(manifest binary_sha)
 [ -n "$SD_SHA" ] && [ -n "$MELON_SHA" ] && [ -n "$WANT" ]
 
-if ! command -v cmake >/dev/null 2>&1 || ! command -v meson >/dev/null 2>&1; then
+if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \
-        ca-certificates curl xz-utils bzip2 tar git \
-        cmake ninja-build make pkgconf meson python3 \
-        autoconf automake libtool patch
+        ca-certificates curl xz-utils tar git \
+        cmake ninja-build make pkgconf bash patch python3 \
+        dpkg-dev autoconf automake libtool
 fi
 
 BOOTLIN_NAME=aarch64--glibc--stable-2025.08-1
@@ -35,69 +35,94 @@ if [ ! -x "$TC/bin/aarch64-linux-gcc" ]; then
 fi
 SYS=$TC/aarch64-buildroot-linux-gnu/sysroot
 export PATH="$TC/bin:$PATH"
-export CC="$TC/bin/aarch64-linux-gcc"
-export CXX="$TC/bin/aarch64-linux-g++"
+# .br_real, not the Buildroot wrapper: the wrapper adds -fstack-protector-strong
+# and rejects some -L paths. BananaDS's cmake file calls .br_real too.
+export CC="$TC/bin/aarch64-linux-gcc.br_real"
+export CXX="$TC/bin/aarch64-linux-g++.br_real"
 export AR="$TC/bin/aarch64-linux-ar"
 export PKG_CONFIG_SYSROOT_DIR=$SYS
 export PKG_CONFIG_LIBDIR=$SYS/usr/lib/pkgconfig
 export PKG_CONFIG_PATH=
 
-if [ ! -f "$SYS/usr/lib/libenet.a" ]; then
-    deps=/tmp/bananads-deps
-    rm -rf "$deps"
-    mkdir -p "$deps"
-    (
-        cd "$deps"
-        if ! curl -fsSLo enet.tar.gz "http://enet.bespin.org/download/enet-1.3.18.tar.gz"; then
-            curl -fsSLo enet.tar.gz "https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.tar.gz"
-        fi
-        mkdir enet && tar -xzf enet.tar.gz -C enet --strip-components=1
-        cd enet
-        [ -f configure ] || autoreconf -fi
-        ./configure --host=aarch64-buildroot-linux-gnu --prefix=/usr --enable-static --disable-shared
-        make -j"$(nproc)"
-        make install DESTDIR="$SYS"
-    )
-    (
-        cd "$deps"
-        curl -fsSLo alsa.tar.bz2 "https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.15.3.tar.bz2"
-        mkdir alsa && tar -xjf alsa.tar.bz2 -C alsa --strip-components=1
-        cd alsa
-        # topology relinks with -L/usr/lib; Bootlin cross-gcc rejects that path
-        ./configure --host=aarch64-buildroot-linux-gnu --prefix=/usr \
-            --disable-python --enable-static=no --disable-topology
-        make -j"$(nproc)"
-        make install DESTDIR="$SYS"
-    )
-    (
-        cd "$deps"
-        curl -fsSLo libdrm.tar.xz "https://dri.freedesktop.org/libdrm/libdrm-2.4.131.tar.xz"
-        mkdir libdrm && tar -xJf libdrm.tar.xz -C libdrm --strip-components=1
-        cd libdrm
-        cat > cross.txt << EOF
-[binaries]
-c = '$CC'
-cpp = '$CXX'
-ar = '$AR'
-pkg-config = 'pkg-config'
-[host_machine]
-system = 'linux'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-[properties]
-sys_root = '$SYS'
+# -flto=auto follows the CPU count, so a 12-core Mac and a GitHub runner
+# do not link the same bytes. Pin the partition count. 12 is what produced
+# the binary that was checked on the handheld.
+pin_flto() {
+    local link=$1 real
+    real=$(readlink -f "$link")
+    if [ -f "${real}.unpinned" ]; then
+        return 0
+    fi
+    mv "$real" "${real}.unpinned"
+    cat > "$real" << EOF
+#!/bin/bash
+jobs=\${BANANADS_LTO_JOBS:-12}
+args=()
+for a in "\$@"; do
+    if [[ "\$a" == "-flto=auto" ]]; then
+        args+=("-flto=\${jobs}")
+    else
+        args+=("\$a")
+    fi
+done
+exec $(printf '%q' "${real}.unpinned") "\${args[@]}"
 EOF
-        meson setup build --cross-file cross.txt --prefix=/usr \
-            -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled \
-            -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dfreedreno=disabled \
-            -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled \
-            -Dcairo-tests=disabled -Dman-pages=disabled -Dvalgrind=disabled \
-            -Dtests=false -Dudev=false
-        meson compile -C build
-        DESTDIR="$SYS" meson install -C build
+    chmod +x "$real"
+}
+pin_flto "$TC/bin/aarch64-linux-gcc.br_real"
+pin_flto "$TC/bin/aarch64-linux-g++.br_real"
+export CC="$TC/bin/aarch64-linux-gcc.br_real"
+export CXX="$TC/bin/aarch64-linux-g++.br_real"
+
+# libdrm and alsa are the shared libraries already on the console. Debian's
+# arm64 packages supply the headers and the link-time .so. libenet is linked
+# into the binary: Debian ships no static library, and BananaOS has no
+# libenet.so, so it is built from the Debian source package.
+DRM_VER=2.4.124-2
+ALSA_VER=1.2.14-1+deb13u1
+ENET_SRC_VER=1.3.18+ds-1
+if [ ! -f "$SYS/usr/lib/libenet.a" ]; then
+    dpkg --add-architecture arm64
+    cat > /etc/apt/sources.list.d/bananads-src.sources << 'EOF'
+Types: deb-src
+URIs: http://deb.debian.org/debian
+Suites: trixie
+Components: main
+EOF
+    apt-get update
+    debs=/tmp/bananads-debs
+    rm -rf "$debs"
+    mkdir -p "$debs"
+    (
+        cd "$debs"
+        apt-get download \
+            "libdrm2:arm64=${DRM_VER}" \
+            "libdrm-dev:arm64=${DRM_VER}" \
+            "libasound2t64:arm64=${ALSA_VER}" \
+            "libasound2-dev:arm64=${ALSA_VER}"
+    )
+    for deb in "$debs"/*.deb; do
+        dpkg-deb -x "$deb" "$SYS"
+    done
+    for name in libdrm.so libasound.so; do
+        ln -sfn "aarch64-linux-gnu/$name" "$SYS/usr/lib/$name"
+    done
+    src=/tmp/bananads-enet-src
+    rm -rf "$src"
+    mkdir -p "$src"
+    (
+        cd "$src"
+        apt-get source "enet=${ENET_SRC_VER}"
+        cd enet-*
+        export CFLAGS="-O2 -g0 -fPIE" CXXFLAGS="-O2 -g0 -fPIE"
+        autoreconf -fi
+        ./configure --host=aarch64-linux-gnu --prefix=/usr --libdir=/usr/lib \
+            --enable-static --disable-shared
+        make -j"$(nproc)"
+        make install DESTDIR="$SYS"
     )
 fi
+export PKG_CONFIG_LIBDIR=$SYS/usr/lib/pkgconfig:$SYS/usr/lib/aarch64-linux-gnu/pkgconfig
 
 rm -rf /tmp/vmac
 mkdir -p /tmp/vmac/src

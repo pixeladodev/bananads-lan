@@ -10,6 +10,6 @@ This app does not include `wifi-link`. It plays on the network the console is al
 
 The on-screen app's source is `app/ui/`. `stb_truetype.h` is public domain.
 
-`build/release-build.sh` compiles BananaDS with the Bootlin aarch64 glibc stable-2025.08-1 toolchain, libdrm 2.4.131, alsa-lib 1.2.15.3 and libenet 1.3.18, and stops if the binary sha256 is not `binary_sha`. `build/apply-patches.sh` is Buildroot's script from 2026.02.3.
+`build/release-build.sh` compiles BananaDS with the Bootlin aarch64 glibc stable-2025.08-1 toolchain. libdrm 2.4.124-2 and alsa-lib 1.2.14-1+deb13u1 come from Debian trixie arm64 (`apt-get download`). libenet 1.3.18+ds-1 is built static from that Debian source package, because the package has no static library and BananaOS does not ship libenet. Link-time optimization is pinned to 12 partitions. The script stops if the binary sha256 is not `binary_sha`. `build/apply-patches.sh` is Buildroot's script from 2026.02.3.
 
 This repository is GPLv3 (`LICENSE`) because it is distributed with BananaDS, which is GPLv3.
