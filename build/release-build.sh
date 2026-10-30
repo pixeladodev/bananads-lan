@@ -73,6 +73,7 @@ if [ ! -f "$SYS/usr/lib/libenet.a" ]; then
         cd "$deps"
         curl -fsSLo libdrm.tar.xz "https://dri.freedesktop.org/libdrm/libdrm-2.4.131.tar.xz"
         mkdir libdrm && tar -xJf libdrm.tar.xz -C libdrm --strip-components=1
+        cd libdrm
         cat > cross.txt << EOF
 [binaries]
 c = '$CC'
