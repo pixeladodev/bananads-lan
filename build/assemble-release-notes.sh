@@ -12,12 +12,15 @@ sums="$ROOT/dist/SHA256SUMS"
 [ -f "$sums" ] || { echo "assemble-release-notes: missing $sums" >&2; exit 1; }
 zip_sha=$(awk '{print $1; exit}' "$sums")
 cat "$ROOT/release-notes/${ver}.md"
-printf '\n---\n\n'
-printf '## Checksums and source (GPLv3)\n\n'
+echo
+echo '---'
+echo
+echo '## Checksums and source (GPLv3)'
+echo
 printf 'SHA256 of `bananads-lan-%s.zip`: `%s`\n\n' "$ver" "$zip_sha"
-printf 'Source:\n'
-printf '- https://github.com/pixeladodev/SuperDrastic/commit/%s\n' "$sd"
-printf '- https://github.com/melonDS-emu/melonDS/commit/%s\n' "$melon"
-printf '- melonDS patches in that SuperDrastic tree: `bananads/patches/melonds/`\n'
-printf '- `build/release-build.sh`, `build/package.sh`, and `build/apply-patches.sh` in this repository\n'
-printf '- `LICENSE`\n'
+echo 'Source:'
+printf '%s\n' "- https://github.com/pixeladodev/SuperDrastic/commit/${sd}"
+printf '%s\n' "- https://github.com/melonDS-emu/melonDS/commit/${melon}"
+echo '- melonDS patches in that SuperDrastic tree: `bananads/patches/melonds/`'
+echo '- `build/release-build.sh`, `build/package.sh`, and `build/apply-patches.sh` in this repository'
+echo '- `LICENSE`'
