@@ -1,0 +1,27 @@
+name: build-check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require quality release notes
+        run: bash build/check-release-notes.sh
+      - name: Compile BananaDS and pack the zip
+        run: docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+      - name: Verify assembled release notes
+        run: bash build/assemble-release-notes.sh | head -n 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bananads-lan-${{ github.run_number }}
+          path: |
+            dist/bananads-lan-*.zip
+            dist/SHA256SUMS
+          if-no-files-found: error

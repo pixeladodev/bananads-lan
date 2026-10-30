@@ -67,6 +67,12 @@ If you delete the folder by hand instead, DS games still open with the original 
 - Play close to the router. A busy or distant network can cause slowdowns.
 - Turning the app off or uninstalling it changes nothing else on the system.
 
+## Built with AI agents
+
+BananaDS LAN is an open source project built with the help of AI coding agents, following good engineering practices: every change is reviewed, and each release is tested on real RG DS and RG DS Plus consoles before it is published.
+
+Even so, as with any software, it may have bugs or behave unexpectedly on your setup. It is provided "as is", without warranty of any kind (see `LICENSE`). Use it at your own risk, and keep a backup of your saves and your microSD card.
+
 ## Source and license
 
 BananaDS LAN is free software under the GNU GPL v3 (see `LICENSE` and `NOTICE`). It is built from BananaDS (SuperDrastic) and melonDS. `SOURCE.md` lists the exact source code and how to build it.

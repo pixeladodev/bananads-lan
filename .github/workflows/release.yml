@@ -1,16 +1,23 @@
 name: release
+
 on:
   push:
     tags:
       - "v*"
+
 permissions:
   contents: write
+
 jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - name: Match tag to app_version
+        run: bash build/validate-release-tag.sh "$GITHUB_REF_NAME"
+      - name: Require quality release notes
+        run: bash build/check-release-notes.sh
       - name: Compile BananaDS and pack the zip
         run: docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
       - name: Publish the release
@@ -19,21 +26,13 @@ jobs:
         run: |
           set -eu
           ver=$(sed -n 's/^app_version=//p' app/manifest | head -n 1 | tr -d '\r')
-          sd=$(sed -n 's/^superdrastic=//p' app/manifest | head -n 1 | tr -d '\r')
-          melon=$(sed -n 's/^melonds=//p' app/manifest | head -n 1 | tr -d '\r')
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists on GitHub." >&2
+            echo "Delete it or use a new tag." >&2
+            exit 1
+          fi
           notes=$(mktemp)
-          {
-            echo "BananaDS LAN ${ver} for BananaOS 0.5.0.1."
-            echo
-            echo "Copy bananads-lan into store/apps and BananaDS LAN.sh into store/tiles. Steps are in INSTALL.txt inside the zip."
-            echo
-            echo "Source, GPLv3:"
-            echo "- https://github.com/pixeladodev/SuperDrastic/commit/${sd}"
-            echo "- https://github.com/melonDS-emu/melonDS/commit/${melon}"
-            echo "- melonDS patches in that SuperDrastic tree, bananads/patches/melonds/"
-            echo "- build/release-build.sh and build/package.sh in this repository"
-            echo "- LICENSE"
-          } > "$notes"
+          bash build/assemble-release-notes.sh > "$notes"
           gh release create "$GITHUB_REF_NAME" \
             "dist/bananads-lan-${ver}.zip" \
             dist/SHA256SUMS \
