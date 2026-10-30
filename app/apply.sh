@@ -3,4 +3,5 @@
 set -eu
 APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 . "$APP/common.sh"
+mp_clean_junk
 mp_apply

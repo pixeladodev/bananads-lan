@@ -86,4 +86,39 @@ mp_apply && { echo "accepted a Plus with no stock hash"; exit 1; }
 echo OK
 ' || bad "gate"
 
+# The shelf tile opens with sh, including one folder too deep, and a Mac copy's junk is removed.
+mkdir -p "$T/apps/bananads-lan/bananads-lan" "$T/tiles"
+printf '#!/bin/sh\necho INNER\n' > "$T/apps/bananads-lan/bananads-lan/tile.sh"
+out=$(BANANADS_MP_APPS=$T/apps sh "$ROOT/tiles/BananaDS LAN.sh")
+printf '%s\n' "$out" | grep -qx INNER || bad "nested tile did not open: $out"
+rm -rf "$T/apps/bananads-lan"
+mkdir -p "$T/apps/bananads-lan"
+printf '#!/bin/sh\necho OUTER\n' > "$T/apps/bananads-lan/tile.sh"
+out=$(BANANADS_MP_APPS=$T/apps sh "$ROOT/tiles/BananaDS LAN.sh")
+printf '%s\n' "$out" | grep -qx OUTER || bad "tile did not open the app: $out"
+grep -q 'exec sh ' "$ROOT/tiles/BananaDS LAN.sh" || bad "tile execs a script directly"
+
+# Nested copy: move the inner folder up, and the tile that landed beside it.
+rm -rf "$T/apps/bananads-lan"
+mkdir -p "$T/apps/bananads-lan/bananads-lan/bin" "$T/tiles"
+printf 'app_version=0.1.0\n' > "$T/apps/bananads-lan/bananads-lan/manifest"
+printf '#!/bin/sh\necho tile\n' > "$T/apps/bananads-lan/BananaDS LAN.sh"
+printf 'junk\n' > "$T/apps/bananads-lan/bananads-lan/._note"
+printf 'junk\n' > "$T/apps/bananads-lan/bananads-lan/.DS_Store"
+cp "$ROOT/app/common.sh" "$T/apps/bananads-lan/bananads-lan/common.sh"
+cp "$ROOT/app/fix-nest.sh" "$T/apps/bananads-lan/bananads-lan/fix-nest.sh"
+BANANADS_MP_APPS=$T/apps BANANADS_MP_TILES=$T/tiles sh "$T/apps/bananads-lan/bananads-lan/fix-nest.sh" >/dev/null || bad "fix-nest failed"
+[ -f "$T/apps/bananads-lan/manifest" ] || bad "fix-nest left the manifest nested"
+[ ! -d "$T/apps/bananads-lan/bananads-lan" ] || bad "fix-nest left the inner folder"
+[ -f "$T/tiles/BananaDS LAN.sh" ] || bad "fix-nest did not move the tile"
+[ ! -f "$T/apps/bananads-lan/._note" ] && [ ! -f "$T/apps/bananads-lan/.DS_Store" ] || bad "fix-nest left Finder junk"
+
+APP=$T/apps/bananads-lan BANANADS_MP_TILES=$T/tiles sh -c '
+. "'"$ROOT"'/app/common.sh"
+printf "x\n" > "$APP/._again"
+printf "x\n" > "$APP/.DS_Store"
+mp_clean_junk
+[ ! -f "$APP/._again" ] && [ ! -f "$APP/.DS_Store" ] || exit 1
+' || bad "junk stayed"
+
 [ "$fail" = 0 ] && echo "selftest: passed" || { echo "selftest: failed"; exit 1; }

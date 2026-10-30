@@ -224,6 +224,18 @@ mp_prepare_game() {
     fi
 }
 
+# Drop the AppleDouble and Finder files a Mac copy leaves inside this app.
+mp_clean_junk() {
+    tiles=${BANANADS_MP_TILES:-/data/store/tiles}
+    [ -n "${APP:-}" ] && [ -d "$APP" ] || return 0
+    find "$APP" \( -name '._*' -o -name '.DS_Store' -o -name '__MACOSX' \) -exec rm -rf {} + 2>/dev/null || true
+    apps=$(dirname "$APP")
+    rm -f "$apps/._bananads-lan" "$apps/.DS_Store" 2>/dev/null || true
+    if [ -d "$tiles" ]; then
+        rm -f "$tiles/._BananaDS LAN.sh" "$tiles/.DS_Store" 2>/dev/null || true
+    fi
+}
+
 mp_emulator() {
     f=${BANANADS_MP_SETTINGS:-/data/banana/settings.conf}
     sed -n 's/^ *nds_emulator *= *//p' "$f" 2>/dev/null | head -n 1 | tr -d '\r' || true

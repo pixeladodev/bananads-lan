@@ -8,12 +8,26 @@ There is no direct link in this app, and no Connection row. Two consoles on the 
 
 ## Install
 
-Unzip onto the BANANA partition (the one that already has `roms` and `banana`), so these paths exist:
+The zip has three things at its root: the folder `bananads-lan`, the file `BananaDS LAN.sh`, and `INSTALL.txt`. It does not contain a `store` folder. Copying that folder over the card's `store` would replace the other apps.
 
-- `store/apps/bananads-lan/`
-- `store/tiles/BananaDS LAN.sh`
+The card's shared folder already has `roms`, `banana` and `store`. Add only:
 
-Open the Apps shelf. If the tile is not there, reboot once.
+```
+store/
+  apps/
+    bananads-lan/
+  tiles/
+    BananaDS LAN.sh
+```
+
+`INSTALL.txt` is the same steps in English and Spanish. Short version:
+
+1. Settings > Network > File sharing > On. Sharing login is Guest, or the name and password under Sharing name and password (at first, banana and linux). The address is on that screen.
+2. Open the share named `banana`. Windows: `\\<address>\banana`. Mac: Finder, Go, Connect to Server, `smb://<address>/banana`. Do not replace `store`. Android (CX File Explorer): Network, new location, SMB, share `banana`. A microSD reader uses the partition named BANANA.
+3. Copy `bananads-lan` into `store/apps`, and `BananaDS LAN.sh` into `store/tiles`.
+4. Reboot once. Open Apps.
+
+If the card has `store/apps/bananads-lan/bananads-lan/`, the copy is one folder too deep. The tile still opens and A moves it up.
 
 In Settings > Nintendo DS > Emulator, choose BananaDS. The app does not change that setting.
 
@@ -43,7 +57,7 @@ Both handhelds' stock BananaDS sha256 values are in `app/manifest`.
 
 ## Build the zip
 
-`./build/package.sh /path/to/bananads` compiles the on-screen app and writes `dist/bananads-lan-<version>.zip` plus `dist/SHA256SUMS`. The version comes from `app/manifest`. The binary's sha256 must match `binary_sha` in that file. It uses `CC` (aarch64, with libdrm) or the `bananads-build:1` image when that is present.
+`./build/package.sh /path/to/bananads` compiles the on-screen app and writes `dist/bananads-lan-<version>.zip` plus `dist/SHA256SUMS`. The version comes from `app/manifest`. The binary's sha256 must match `binary_sha` in that file. It uses `CC` (aarch64, with libdrm) or the `bananads-build:1` image when that is present. The zip root is `bananads-lan/`, `BananaDS LAN.sh` and `INSTALL.txt`.
 
 `./build/selftest.sh` checks the launcher block and the version gate without a handheld.
 

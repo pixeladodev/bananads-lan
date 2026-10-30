@@ -1,0 +1,69 @@
+BananaDS LAN
+==============
+
+Copy two things into the shared folder. Do not replace the store folder.
+A computer that replaces store deletes the other apps already on the card.
+
+Where it goes
+-------------
+
+The shared folder already has roms, banana and store. Leave those.
+Add only the folder and the file from this zip:
+
+    store/
+      apps/
+        bananads-lan/
+          bin/
+          ui/
+          apply.sh
+          ...
+      tiles/
+        BananaDS LAN.sh
+      (other apps stay here)
+
+Then reboot once and open Apps. The tile is BananaDS LAN.
+
+In Settings > Nintendo DS > Emulator, choose BananaDS. This app does not change that.
+
+One folder too deep
+-------------------
+
+This is the usual mistake. The app was unzipped into its own folder, so the card has:
+
+    store/apps/bananads-lan/bananads-lan/
+
+Open the tile anyway. It says so, and A moves it up. Or move the inner bananads-lan up yourself and put BananaDS LAN.sh in store/tiles.
+
+English
+-------
+
+1. On the console: Settings > Network > File sharing > On.
+   Sharing login is either Guest (no password) or a name and password.
+   The name and password are under Sharing name and password.
+   At first the name is banana and the password is linux.
+2. On the computer, open the share named banana. The address is the one on that same Network screen.
+   Windows File Explorer: \\<address>\banana
+   Mac: Finder, Go, Connect to Server (Cmd+K), smb://<address>/banana
+   Do not drag this zip onto store, and do not replace store.
+   Android, CX File Explorer: Network, new location, SMB, then the same address and the share banana.
+   microSD in a reader: the partition is named BANANA. Same two copies. Do not replace store.
+3. Copy the folder bananads-lan into store/apps.
+   Copy the file BananaDS LAN.sh into store/tiles.
+4. Reboot the console once. Open Apps.
+
+Español
+-------
+
+1. En la consola: Settings > Network > File sharing > On.
+   Sharing login puede ser Guest (sin contraseña) o un nombre y una contraseña.
+   El nombre y la contraseña están en Sharing name and password.
+   Al principio el nombre es banana y la contraseña es linux.
+2. En el computador, abre el recurso que se llama banana. La dirección está en esa misma pantalla de Network.
+   Explorador de Windows: \\<address>\banana
+   Mac: Finder, Ir, Conectarse al servidor (Cmd+K), smb://<address>/banana
+   No arrastres este zip sobre store, y no reemplaces store.
+   Android, CX File Explorer: Red, nueva ubicación, SMB, y luego la misma dirección y el recurso banana.
+   microSD en un lector: la partición se llama BANANA. Las mismas dos copias. No reemplaces store.
+3. Copia la carpeta bananads-lan dentro de store/apps.
+   Copia el archivo BananaDS LAN.sh dentro de store/tiles.
+4. Reinicia la consola una vez. Abre Apps.

@@ -412,6 +412,19 @@ static void draw(const State *st, const char *err, int confirm)
         Panel *p = &g_p[s];
         fill(p, 0, 0, g_w, g_h, C_BG);
         margin = g_w / 18;
+        if (confirm == 2) {
+            text(p, margin, g_h / 6, "One folder too deep.", C_LIGHT);
+            text(p, margin, g_h / 6 + g_px * 2, "bananads-lan/bananads-lan", C_GREY);
+            text(p, margin, g_h / 6 + g_px * 4, "A moves it up one folder.", C_GREY);
+            text(p, margin, g_h - g_px * 2, "A  move it up    B  back", C_GREY);
+            continue;
+        }
+        if (confirm == 3) {
+            text(p, margin, g_h / 5, "Moved.", C_LIGHT);
+            text(p, margin, g_h / 5 + g_px * 2, "Open BananaDS LAN again.", C_GREY);
+            text(p, margin, g_h - g_px * 2, "A  or B  back", C_GREY);
+            continue;
+        }
         if (confirm) {
             text(p, margin, g_h / 5, "Uninstall BananaDS LAN?", C_LIGHT);
             text(p, margin, g_h / 5 + g_px * 2, "Turns it off and deletes this app.", C_GREY);
@@ -467,6 +480,14 @@ static int key_action(int code, int value)
     }
 }
 
+static int app_is_nested(void)
+{
+    const char *tail = "/bananads-lan/bananads-lan";
+    size_t n = strlen(g_app), t = strlen(tail);
+    if (n < t) return 0;
+    return strcmp(g_app + n - t, tail) == 0;
+}
+
 static int app_dir(void)
 {
     char exe[512];
@@ -498,6 +519,7 @@ int main(void)
     signal(SIGTERM, on_signal);
     signal(SIGINT, on_signal);
     if (!app_dir()) { fprintf(stderr, "bananads-lan: cannot find the app directory\n"); return 1; }
+    if (app_is_nested()) confirm = 2;
     if (!display_open()) return 1;
     if (!load_font()) fprintf(stderr, "bananads-lan: Pixelify Sans was not found\n");
     d = opendir("/dev/input");
@@ -532,9 +554,15 @@ int main(void)
             }
         }
         if (action == ACT_QUIT) {
+            if (confirm == 2 || confirm == 3) break;
             if (!confirm) break;
             confirm = 0;
             err[0] = 0;
+            draw(&st, err, confirm);
+        } else if (action == ACT_TOGGLE && confirm == 3) {
+            break;
+        } else if (action == ACT_TOGGLE && confirm == 2) {
+            if (run_sh("fix-nest.sh", err, (int)sizeof err)) confirm = 3;
             draw(&st, err, confirm);
         } else if (action == ACT_UNINSTALL && !confirm) {
             confirm = 1;

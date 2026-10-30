@@ -28,7 +28,15 @@ unzip -q -d "$STAGE" "$ZIP"
 
 one() {
     local ip=$1
-    COPYFILE_DISABLE=1 tar -C "$STAGE" -cf - store | ssh -i "$KEY" -o IdentitiesOnly=yes -o ConnectTimeout=8 -o BatchMode=yes "root@$ip" 'tar -C /data -xf -'
+    COPYFILE_DISABLE=1 tar -C "$STAGE" -cf - bananads-lan "BananaDS LAN.sh" | ssh -i "$KEY" -o IdentitiesOnly=yes -o ConnectTimeout=8 -o BatchMode=yes "root@$ip" '
+        set -eu
+        d=$(mktemp -d)
+        tar -C "$d" -xf -
+        mkdir -p /data/store/apps/bananads-lan /data/store/tiles
+        tar -C "$d/bananads-lan" -cf - . | tar -C /data/store/apps/bananads-lan -xf -
+        cp "$d/BananaDS LAN.sh" "/data/store/tiles/BananaDS LAN.sh"
+        rm -rf "$d"
+    '
     ssh -i "$KEY" -o IdentitiesOnly=yes -o ConnectTimeout=8 -o BatchMode=yes "root@$ip" '
         set -eu
         A=/data/store/apps/bananads-lan

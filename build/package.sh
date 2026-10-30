@@ -1,5 +1,6 @@
 #!/bin/sh
-# Build the on-screen app and zip it for the BANANA partition.
+# Build the on-screen app and zip it.
+# The zip root is bananads-lan/, BananaDS LAN.sh and INSTALL.txt. No store/ tree.
 #   ./build/package.sh /path/to/bananads
 # The version in the zip name is app_version from app/manifest.
 # The binary must match binary_sha in that file.
@@ -20,8 +21,8 @@ fi
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
-APP=$STAGE/store/apps/bananads-lan
-mkdir -p "$APP/bin" "$APP/ui" "$STAGE/store/tiles" "$ROOT/dist"
+APP=$STAGE/bananads-lan
+mkdir -p "$APP/bin" "$APP/ui" "$ROOT/dist"
 
 DRM_INC=${DRM_INC:-}
 if [ -n "${CC:-}" ]; then
@@ -45,12 +46,13 @@ fi
 
 cp "$BIN" "$APP/bin/bananads"
 cp "$ROOT/app/common.sh" "$ROOT/app/apply.sh" "$ROOT/app/revert.sh" "$ROOT/app/status.sh" \
-    "$ROOT/app/run-nds-lan" "$ROOT/app/tile.sh" "$ROOT/app/uninstall.sh" "$ROOT/app/app.json" \
-    "$ROOT/app/manifest" "$APP/"
-cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/store/tiles/BananaDS LAN.sh"
+    "$ROOT/app/run-nds-lan" "$ROOT/app/tile.sh" "$ROOT/app/uninstall.sh" "$ROOT/app/fix-nest.sh" \
+    "$ROOT/app/app.json" "$ROOT/app/manifest" "$APP/"
+cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/BananaDS LAN.sh"
+cp "$ROOT/INSTALL.txt" "$STAGE/INSTALL.txt"
 chmod 755 "$APP/bin/bananads" "$APP/ui/bananads-lan" "$APP/apply.sh" "$APP/revert.sh" \
-    "$APP/status.sh" "$APP/run-nds-lan" "$APP/tile.sh" "$APP/uninstall.sh" \
-    "$STAGE/store/tiles/BananaDS LAN.sh"
+    "$APP/status.sh" "$APP/run-nds-lan" "$APP/tile.sh" "$APP/uninstall.sh" "$APP/fix-nest.sh" \
+    "$STAGE/BananaDS LAN.sh"
 
 ZIP=$ROOT/dist/bananads-lan-$ver.zip
 python3 - "$STAGE" "$ZIP" "$ROOT/dist/SHA256SUMS" << 'PY'
@@ -60,7 +62,10 @@ with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
     for dirpath, _, files in os.walk(stage):
         for name in files:
             full = os.path.join(dirpath, name)
-            rel = os.path.relpath(full, stage)
+            rel = os.path.relpath(full, stage).replace(os.sep, "/")
+            base = os.path.basename(rel)
+            if base.startswith("._") or base == ".DS_Store" or "__MACOSX" in rel.split("/"):
+                continue
             info = zipfile.ZipInfo(rel)
             info.external_attr = (os.stat(full).st_mode & 0xFFFF) << 16
             info.compress_type = zipfile.ZIP_DEFLATED
@@ -72,6 +77,13 @@ with open(dest, "rb") as fh:
         h.update(chunk)
 with open(sums, "w") as fh:
     fh.write("%s  %s\n" % (h.hexdigest(), os.path.basename(dest)))
+with zipfile.ZipFile(dest) as z:
+    names = z.namelist()
+tops = set(n.split("/")[0] for n in names)
+want = {"bananads-lan", "BananaDS LAN.sh", "INSTALL.txt"}
+if tops != want or any(n.startswith("store/") or n.startswith("._") or "__MACOSX" in n for n in names):
+    sys.stderr.write("zip root is %s\n" % ", ".join(sorted(tops)))
+    sys.exit(1)
 print(dest)
 PY
 if command -v sha256sum >/dev/null 2>&1; then

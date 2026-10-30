@@ -25,7 +25,7 @@ jobs:
           {
             echo "BananaDS LAN ${ver} for BananaOS 0.5.0.1."
             echo
-            echo "Unzip onto the BANANA partition. The Apps tile is BananaDS LAN."
+            echo "Copy bananads-lan into store/apps and BananaDS LAN.sh into store/tiles. Steps are in INSTALL.txt inside the zip."
             echo
             echo "Source, GPLv3:"
             echo "- https://github.com/pixeladodev/SuperDrastic/commit/${sd}"
