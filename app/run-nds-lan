@@ -1,0 +1,8 @@
+#!/bin/sh
+# Nintendo DS launcher while Local multiplayer is on. A BananaOS build this app does not
+# know runs the stock launcher and does not mount anything.
+set -eu
+APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+. "$APP/common.sh"
+mp_prepare_game
+exec /usr/libexec/banana/run-nds "$@"

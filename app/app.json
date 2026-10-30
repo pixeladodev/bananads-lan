@@ -1,0 +1,5 @@
+{
+  "check": "bin/bananads",
+  "launch": "tile.sh",
+  "pre_remove": "revert.sh"
+}

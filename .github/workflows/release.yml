@@ -1,0 +1,41 @@
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile BananaDS and pack the zip
+        run: docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          ver=$(sed -n 's/^app_version=//p' app/manifest | head -n 1 | tr -d '\r')
+          sd=$(sed -n 's/^superdrastic=//p' app/manifest | head -n 1 | tr -d '\r')
+          melon=$(sed -n 's/^melonds=//p' app/manifest | head -n 1 | tr -d '\r')
+          notes=$(mktemp)
+          {
+            echo "BananaDS LAN ${ver} for BananaOS 0.5.0.1."
+            echo
+            echo "Unzip onto the BANANA partition. The Apps tile is BananaDS LAN."
+            echo
+            echo "Source, GPLv3:"
+            echo "- https://github.com/pixeladodev/SuperDrastic/commit/${sd}"
+            echo "- https://github.com/melonDS-emu/melonDS/commit/${melon}"
+            echo "- melonDS patches in that SuperDrastic tree, bananads/patches/melonds/"
+            echo "- build/release-build.sh and build/package.sh in this repository"
+            echo "- LICENSE"
+          } > "$notes"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/bananads-lan-${ver}.zip" \
+            dist/SHA256SUMS \
+            --title "BananaDS LAN ${ver}" \
+            --notes-file "$notes"

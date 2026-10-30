@@ -1,0 +1,5 @@
+app/ui/third_party/stb_truetype.h is public domain (Sean Barrett).
+
+The on-screen app draws with libdrm. Its colours are BananaOS's palette, the
+same values BananaDS's menu uses. The typeface is Pixelify Sans, already on
+the handheld at /usr/share/banana/rnds/fonts.

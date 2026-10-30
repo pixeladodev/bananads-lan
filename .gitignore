@@ -1,0 +1,5 @@
+dist/
+app/bin/
+app/ui/bananads-lan
+app/.mounted
+dev/consoles.local
