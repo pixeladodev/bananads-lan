@@ -1,64 +1,76 @@
 # BananaDS LAN
 
-Local multiplayer for BananaDS on BananaOS, over the Wi-Fi network the console is already on. Turn it on or off from an app on the Apps shelf.
+Local multiplayer for Nintendo DS games on BananaOS. Two or more consoles on the same Wi-Fi network can race, battle, trade and chat as if they were linked by DS wireless, using BananaDS.
 
-Works with BananaOS 0.5.0.1 on the Anbernic RG DS and the RG DS Plus. Other versions are left on the BananaDS that came with the OS.
+Install it once, turn it on from the Apps shelf, and play.
 
-There is no direct link in this app, and no Connection row. Two consoles on the same network use Host and Join. `BANANADS_LAN_EARLY_REPLY=0` turns the early reply off. Anything else leaves it on.
+## Requirements
+
+- Anbernic RG DS or RG DS Plus
+- BananaOS 0.5.0.1
+- All consoles connected to the same Wi-Fi network
+- BananaDS as the Nintendo DS emulator: Settings > Nintendo DS > Emulator > BananaDS
+
+On any other BananaOS version the app does nothing and your games keep the BananaDS that came with the system.
 
 ## Install
 
-The zip has three things at its root: the folder `bananads-lan`, the file `BananaDS LAN.sh`, and `INSTALL.txt`. It does not contain a `store` folder. Copying that folder over the card's `store` would replace the other apps.
+Download `bananads-lan-<version>.zip` from [Releases](../../releases) and extract it. You get:
 
-The card's shared folder already has `roms`, `banana` and `store`. Add only:
+- the folder `bananads-lan`
+- the file `BananaDS LAN.sh`
+- `INSTALL.txt` (these same steps, in English and Spanish)
 
-```
-store/
-  apps/
-    bananads-lan/
-  tiles/
-    BananaDS LAN.sh
-```
+Copy them to the console:
 
-`INSTALL.txt` is the same steps in English and Spanish. Short version:
+1. On the console, turn on File sharing in Settings > Network. The address is shown on that screen. Log in as Guest, or with the name and password under Sharing name and password (by default `banana` and `linux`).
+2. Open the shared folder named `banana` from your computer or phone:
+   - Windows: `\\<address>\banana` in File Explorer
+   - macOS: Finder > Go > Connect to Server > `smb://<address>/banana`
+   - Android (CX File Explorer): Network > New location > SMB > `banana`
+   - Or put the microSD card in a reader and open the partition named BANANA
+3. Copy the folder `bananads-lan` into `store/apps`, and the file `BananaDS LAN.sh` into `store/tiles`:
 
-1. Settings > Network > File sharing > On. Sharing login is Guest, or the name and password under Sharing name and password (at first, banana and linux). The address is on that screen.
-2. Open the share named `banana`. Windows: `\\<address>\banana`. Mac: Finder, Go, Connect to Server, `smb://<address>/banana`. Do not replace `store`. Android (CX File Explorer): Network, new location, SMB, share `banana`. A microSD reader uses the partition named BANANA.
-3. Copy `bananads-lan` into `store/apps`, and `BananaDS LAN.sh` into `store/tiles`.
-4. Reboot once. Open Apps.
+   ```
+   store/
+     apps/
+       bananads-lan/
+     tiles/
+       BananaDS LAN.sh
+   ```
 
-If the card has `store/apps/bananads-lan/bananads-lan/`, the copy is one folder too deep. The tile still opens and A moves it up.
+   Copy only those two items. Do not drag or replace the whole `store` folder, or you will lose your other apps.
+4. Reboot the console once. BananaDS LAN now appears in Apps.
 
-In Settings > Nintendo DS > Emulator, choose BananaDS. The app does not change that setting.
+If you see `store/apps/bananads-lan/bananads-lan/`, the folder went one level too deep. The app still opens and offers to fix it.
 
-A toggles On and Off. Y asks, then uninstalls: Off, then the app and its tile are deleted. B goes back to the menu.
+## Use
 
-On, the next DS game is this BananaDS, including when the menu was already open. Off, the next game is the copy that came with the OS, including when the menu was already open.
+Open BananaDS LAN from Apps:
 
-Deleting the app folder while it is on does not stop DS games from opening. The launcher checks that this app is still there. If it is gone, it drops this app's mount when that mount is the one in place, and opens the BananaDS that came with the OS.
+- **A** turns Local multiplayer on or off
+- **Y** uninstalls the app (it asks first)
+- **B** goes back to the menu
 
-## What On and Off change
+When it is on, every DS game you open uses BananaDS with Local multiplayer. It stays on after a reboot until you turn it off or uninstall it.
 
-On: the DS launcher in `banana/systems.conf` becomes this app's wrapper, and the app's BananaDS is mounted on `/usr/bin/bananads`. Off: that launcher line is removed and the mount is dropped. A BananaOS version or a stock BananaDS this app does not list is not mounted.
+Local multiplayer is set to **Auto**, so it is plug and play: open the same game on each console, go to the game's own wireless or multiplayer mode, and the consoles find each other. You can also pick Host or Join yourself from the in-game menu, on the Local multiplayer page.
 
-## Tried on the handhelds
+## Uninstall
 
-On BananaOS 0.5.0.1, on an RG DS and an RG DS Plus: the tile showed up, On mounted this BananaDS, two consoles hosted and joined a game on the same network, Off went back to the BananaDS that came with the OS, and Uninstall left the next game on that copy.
+Open BananaDS LAN and press **Y**. It turns itself off and removes its folder and tile. Your games go back to the BananaDS that came with BananaOS.
 
-Deleting the app folder while it is on leaves the launcher line in place. The next game drops this app's mount, including when the mounted file is already gone, and opens the BananaDS that came with the OS.
+If you delete the folder by hand instead, DS games still open with the original BananaDS.
 
-The binary matches a build of `pixeladodev/SuperDrastic` `dc09daa` (sha256 below).
+## Good to know
 
-Both handhelds' stock BananaDS sha256 values are in `app/manifest`.
+- Play close to the router. A busy or distant network can cause slowdowns.
+- Turning the app off or uninstalling it changes nothing else on the system.
 
-```
-88a435f4a38b4f9253a233415e64052b5a771c96eeb9c66cb0aa8cbe26edde94  bananads
-```
+## Source and license
 
-## Build the zip
+BananaDS LAN is free software under the GNU GPL v3 (see `LICENSE` and `NOTICE`). It is built from BananaDS (SuperDrastic) and melonDS. `SOURCE.md` lists the exact source code and how to build it.
 
-`./build/package.sh /path/to/bananads` compiles the on-screen app and writes `dist/bananads-lan-<version>.zip` plus `dist/SHA256SUMS`. The version comes from `app/manifest`. The binary's sha256 must match `binary_sha` in that file. It uses `CC` (aarch64, with libdrm) or the `bananads-build:1` image when that is present. The zip root is `bananads-lan/`, `BananaDS LAN.sh` and `INSTALL.txt`.
+### Building
 
-`./build/selftest.sh` checks the launcher block and the version gate without a handheld.
-
-`./dev/deploy.sh` copies the built tree onto consoles. It does not commit. Set `CONSOLES` or `dev/consoles.local`.
+`./build/package.sh /path/to/bananads` builds the app and writes `dist/bananads-lan-<version>.zip` and `dist/SHA256SUMS`. Releases are built by GitHub Actions when a `v*` tag is pushed. `./build/selftest.sh` runs checks without a console.

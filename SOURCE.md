@@ -2,7 +2,7 @@
 
 BananaDS in this app is built from:
 
-- https://github.com/pixeladodev/SuperDrastic/commit/dc09daac1b91543fd6f4dfc1f9e036ea0f88d634
+- https://github.com/pixeladodev/SuperDrastic/commit/e5847a7522b0fa5722a1bfc93d532ed1e157e7e0
 - melonDS https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 - the melonDS patches in that SuperDrastic tree, `bananads/patches/melonds/`
 
