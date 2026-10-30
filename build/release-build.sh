@@ -63,7 +63,9 @@ if [ ! -f "$SYS/usr/lib/libenet.a" ]; then
         curl -fsSLo alsa.tar.bz2 "https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.15.3.tar.bz2"
         mkdir alsa && tar -xjf alsa.tar.bz2 -C alsa --strip-components=1
         cd alsa
-        ./configure --host=aarch64-buildroot-linux-gnu --prefix=/usr --disable-python --enable-static=no
+        # topology relinks with -L/usr/lib; Bootlin cross-gcc rejects that path
+        ./configure --host=aarch64-buildroot-linux-gnu --prefix=/usr \
+            --disable-python --enable-static=no --disable-topology
         make -j"$(nproc)"
         make install DESTDIR="$SYS"
     )
