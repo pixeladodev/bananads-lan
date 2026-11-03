@@ -12,10 +12,14 @@ SD_SHA=$(manifest superdrastic)
 MELON_SHA=$(manifest melonds)
 WANT=$(manifest binary_sha)
 [ -n "$SD_SHA" ] && [ -n "$MELON_SHA" ] && [ -n "$WANT" ]
+# BANANADS_LAN_ALLOW_DRAFT=1 (build-check with draft on, never the tag release):
+# compile even with placeholders, report the binary sha and keep the binary in dist/.
+DRAFT=${BANANADS_LAN_ALLOW_DRAFT:-}
 if grep -Eq '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest"; then
-    echo "release stopped: app/manifest still has placeholders:" >&2
+    echo "app/manifest still has placeholders:" >&2
     grep -E '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest" >&2
-    exit 1
+    [ "$DRAFT" = 1 ] || { echo "release stopped" >&2; exit 1; }
+    echo "draft build: compiling anyway, nothing here is releasable" >&2
 fi
 
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
@@ -154,6 +158,14 @@ ninja -C /tmp/vmac/build bananads
 "$TC/bin/aarch64-linux-strip" --remove-section=.comment --remove-section=.note --strip-unneeded \
     -o /tmp/vmac/bananads /tmp/vmac/build/bananads
 got=$(sha256sum /tmp/vmac/bananads | awk '{print $1}')
+if [ "$DRAFT" = 1 ]; then
+    mkdir -p "$ROOT/dist"
+    cp /tmp/vmac/bananads "$ROOT/dist/bananads"
+    echo "$got  bananads" > "$ROOT/dist/bananads.sha256"
+    echo "draft build: binary sha is $got (manifest has $WANT)"
+    [ "$got" = "$WANT" ] && echo "draft build: it matches binary_sha" || echo "draft build: it does NOT match binary_sha"
+    exit 0
+fi
 if [ "$got" != "$WANT" ]; then
     echo "binary sha is $got" >&2
     echo "manifest wants $WANT" >&2

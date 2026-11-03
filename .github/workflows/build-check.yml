@@ -2,6 +2,11 @@ name: build-check
 
 on:
   workflow_dispatch:
+    inputs:
+      draft:
+        description: "Draft build: compile with manifest placeholders, report the binary sha, no zip"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,12 +18,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Require quality release notes
+        if: ${{ !inputs.draft }}
         run: bash build/check-release-notes.sh
       - name: Compile BananaDS and pack the zip
+        if: ${{ !inputs.draft }}
         run: docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+      - name: Compile BananaDS (draft, binary and sha only)
+        if: ${{ inputs.draft }}
+        run: docker run --rm --platform linux/amd64 -e BANANADS_LAN_ALLOW_DRAFT=1 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
       - name: Verify assembled release notes
+        if: ${{ !inputs.draft }}
         run: bash build/assemble-release-notes.sh | head -n 5
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.draft }}
+        with:
+          name: bananads-lan-draft-${{ github.run_number }}
+          path: |
+            dist/bananads
+            dist/bananads.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.draft }}
         with:
           name: bananads-lan-${{ github.run_number }}
           path: |
