@@ -17,7 +17,13 @@ if [ "$chars" -lt 1200 ] || [ "$lines" -lt 28 ]; then
     echo "Release notes must be substantive, not a placeholder." >&2
     exit 1
 fi
-for need in "BananaOS" "0.5.0.1" "RG DS" "English" "Español"; do
+os=$(sed -n 's/^bananaos=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
+[ -n "$os" ] || { echo "check-release-notes: app/manifest has no bananaos" >&2; exit 1; }
+if grep -q 'DRAFT' "$file"; then
+    echo "check-release-notes: $file is marked DRAFT; finish it and remove the marker before a release" >&2
+    exit 1
+fi
+for need in "BananaOS" "$os" "RG DS" "English" "Español"; do
     grep -q "$need" "$file" || {
         echo "check-release-notes: $file must mention $need" >&2
         exit 1

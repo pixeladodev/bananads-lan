@@ -7,7 +7,7 @@ Install it once, turn it on from the Apps shelf, and play.
 ## Requirements
 
 - Anbernic RG DS or RG DS Plus
-- BananaOS 0.5.0.1
+- BananaOS 0.5.2.2 (for BananaOS 0.5.0.1, use BananaDS LAN 0.1.0)
 - All consoles connected to the same Wi-Fi network
 - BananaDS as the Nintendo DS emulator: Settings > Nintendo DS > Emulator > BananaDS
 

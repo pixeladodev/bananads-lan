@@ -12,6 +12,12 @@ BIN=${1:-}
 ver=$(sed -n 's/^app_version=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 want=$(sed -n 's/^binary_sha=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 [ -n "$ver" ] && [ -n "$want" ] || { echo "app/manifest needs app_version and binary_sha" >&2; exit 1; }
+if grep -Eq '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest"; then
+    echo "app/manifest still has placeholders, so this is not a releasable app:" >&2
+    grep -E '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest" >&2
+    [ "${BANANADS_LAN_ALLOW_DRAFT:-}" = 1 ] || exit 1
+    echo "BANANADS_LAN_ALLOW_DRAFT=1: packaging a draft anyway (it refuses to turn On on a handheld)" >&2
+fi
 if command -v sha256sum >/dev/null 2>&1; then
     got=$(sha256sum "$BIN" | awk '{print $1}')
 else

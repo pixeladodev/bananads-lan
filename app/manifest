@@ -1,7 +1,12 @@
-app_version=0.1.0
-bananaos=0.5.0.1
-stock_sha_rgds=72078bd50baf038570b69f6ae9cb2f47d405ed3d7a72cea452b7ded3f08b68c9
-stock_sha_rgds_plus=46d298d90887c1c87b2f2a0a63f36787a4d1f86aba9e9db93837762c00895879
-binary_sha=7dbd5b872f5fa333f07d04dd6ac666f8e24bcf70c9c3bc890213ce0d235cd0f7
-superdrastic=e5847a7522b0fa5722a1bfc93d532ed1e157e7e0
+app_version=0.2.0
+bananaos=0.5.2.2
+stock_sha_rgds=TODO-measure-on-0.5.2.2
+stock_sha_rgds_plus=TODO-measure-on-0.5.2.2
+binary_sha=158052a47cb4e44db0aa5e5320057fff83a242f432519fcdfc2e9e13223c24d5
+superdrastic=92b24cb1f4ff44019546beba210ccfdf25708319
 melonds=906e9ebb27da8c6a715cd7abab4abfe8a8d29427
+# Draft for BananaOS 0.5.2.2. Not releasable yet:
+# - stock_sha_rgds / stock_sha_rgds_plus: sha256 of /usr/bin/bananads measured on each handheld after it updates
+#   to 0.5.2.2, with this app Off. Until then the app refuses to turn On.
+# - binary_sha: the local build (Pruebitas build env, build.sh). build/release-build.sh fetches superdrastic from
+#   GitHub, so it can only confirm or replace this value once that commit is pushed.

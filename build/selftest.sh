@@ -83,8 +83,23 @@ mp_apply && { echo "accepted a wrong BananaOS"; exit 1; }
 printf "VERSION_ID=0.5.0.1\n" > "$BANANADS_MP_OS"
 printf "Anbernic RG DS Plus\n" > "$BANANADS_MP_MODEL"
 mp_apply && { echo "accepted a Plus with no stock hash"; exit 1; }
+printf "Anbernic RG DS\n" > "$BANANADS_MP_MODEL"
+m=$(cat "$APP/manifest")
+printf "%s\n" "$m" | sed "s/^stock_sha_rgds=.*/stock_sha_rgds=TODO-measure-on-0.5.2.2/" > "$APP/manifest"
+mp_apply 2>/dev/null && { echo "accepted a placeholder stock hash"; exit 1; }
+mp_check || true
+printf "%s\n" "$MP_REASON" | grep -q "draft build" || { echo "placeholder reason unclear: $MP_REASON"; exit 1; }
+printf "%s\n" "$m" | sed "s/^binary_sha=.*/binary_sha=TODO-local-build/" > "$APP/manifest"
+mp_apply 2>/dev/null && { echo "accepted a placeholder binary hash"; exit 1; }
+printf "%s\n" "$m" > "$APP/manifest"
 echo OK
 ' || bad "gate"
+
+# The launcher hands the game to BananaOS's own run-nds with its arguments and environment untouched, so
+# run-bananads's per-game options and button settings (BANANADS_INPUT_*, BANANADS_CORE_*) reach this BananaDS.
+tail -n 1 "$ROOT/app/run-nds-lan" | grep -qx 'exec /usr/libexec/banana/run-nds "$@"' || bad "run-nds-lan does not end in run-nds"
+grep -Eq '(export|unset|env -i)[^#]*BANANADS_(INPUT|CORE|RENDER|KMS)' "$ROOT/app/run-nds-lan" "$ROOT/app/common.sh" \
+    && bad "the launcher changes run-bananads's environment"
 
 # The shelf tile opens with sh, including one folder too deep, and a Mac copy's junk is removed.
 mkdir -p "$T/apps/bananads-lan/bananads-lan" "$T/tiles"

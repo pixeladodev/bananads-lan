@@ -12,6 +12,11 @@ SD_SHA=$(manifest superdrastic)
 MELON_SHA=$(manifest melonds)
 WANT=$(manifest binary_sha)
 [ -n "$SD_SHA" ] && [ -n "$MELON_SHA" ] && [ -n "$WANT" ]
+if grep -Eq '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest"; then
+    echo "release stopped: app/manifest still has placeholders:" >&2
+    grep -E '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest" >&2
+    exit 1
+fi
 
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive

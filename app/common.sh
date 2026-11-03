@@ -81,6 +81,14 @@ mp_foreign_mount() {
     return 0
 }
 
+# A manifest value that is still a placeholder (TODO-...): never a real hash, so never accepted.
+mp_placeholder() {
+    case $1 in
+        TODO*|todo*) return 0 ;;
+    esac
+    return 1
+}
+
 mp_check() {
     MP_REASON=
     want=$(mp_manifest bananaos)
@@ -99,6 +107,10 @@ mp_check() {
         MP_REASON="the stock BananaDS hash for this handheld is not in the manifest yet"
         return 1
     fi
+    if mp_placeholder "$expect"; then
+        MP_REASON="this is a draft build: the stock BananaDS hash for this handheld has not been measured yet ($expect)"
+        return 1
+    fi
     stock=$(mp_stock_sha)
     if [ "$stock" != "$expect" ]; then
         MP_REASON="stock BananaDS does not match this BananaOS build"
@@ -106,6 +118,10 @@ mp_check() {
     fi
     bin=$(mp_sha "$APP/bin/bananads")
     wantb=$(mp_manifest binary_sha)
+    if mp_placeholder "$wantb"; then
+        MP_REASON="this is a draft build: binary_sha in the manifest is a placeholder ($wantb)"
+        return 1
+    fi
     if [ -z "$bin" ] || [ "$bin" != "$wantb" ]; then
         MP_REASON="the app's BananaDS binary is missing or does not match the manifest"
         return 1
