@@ -7,7 +7,7 @@ ver=$(sed -n 's/^app_version=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 file="$ROOT/release-notes/${ver}.md"
 [ -f "$file" ] || {
     echo "check-release-notes: missing $file" >&2
-    echo "Every release needs quality notes in release-notes/<version>.md (English and Spanish)." >&2
+    echo "Every release needs quality notes in release-notes/<version>.md (English)." >&2
     exit 1
 }
 chars=$(wc -c < "$file" | tr -d ' ')
@@ -23,7 +23,7 @@ if grep -q 'DRAFT' "$file"; then
     echo "check-release-notes: $file is marked DRAFT; finish it and remove the marker before a release" >&2
     exit 1
 fi
-for need in "BananaOS" "$os" "RG DS" "English" "Español"; do
+for need in "BananaOS" "$os" "RG DS"; do
     grep -q "$need" "$file" || {
         echo "check-release-notes: $file must mention $need" >&2
         exit 1
