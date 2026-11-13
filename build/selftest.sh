@@ -136,4 +136,12 @@ mp_clean_junk
 [ ! -f "$APP/._again" ] && [ ! -f "$APP/.DS_Store" ] || exit 1
 ' || bad "junk stayed"
 
+# the app's updater, against a fake GitHub on localhost
+sh -n "$ROOT/app/post-install.sh" || bad "syntax post-install.sh"
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$ROOT/build/update-selftest.py" >/dev/null || bad "updater"
+else
+    echo "selftest: no python3, the updater is not checked"
+fi
+
 [ "$fail" = 0 ] && echo "selftest: passed" || { echo "selftest: failed"; exit 1; }

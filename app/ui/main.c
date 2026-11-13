@@ -1,4 +1,5 @@
-/* BananaDS LAN: On/Off on both panels. Uninstall turns it off and removes the app.
+/* BananaDS LAN: On/Off on both panels, and its own updates (update.py, through updater.c). Uninstall turns it off
+   and removes the app.
    Drawn in the menu's look by view.c and pixel.c (the theme and accent from settings.conf, Pixelify Sans).
    libdrm, both DSI panels; the buttons, and touch on the bottom panel. */
 #include "view.h"
@@ -39,6 +40,7 @@ static Panel g_p[2];
 static uint32_t *g_buf[2];
 
 static char g_app[512];
+static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 
 static void planes_upright(void)
 {
@@ -239,6 +241,13 @@ static void copy_str(char *dst, size_t n, const char *src)
     dst[i] = 0;
 }
 
+static long ticks(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000L + t.tv_nsec / 1000000L;
+}
+
 static void manifest(const char *key, char *dst, size_t n)
 {
     char path[640], line[256];
@@ -396,7 +405,7 @@ static int app_dir(void)
 /* one action; returns 1 to leave */
 static int handle(Model *m, int act, int arg)
 {
-    if (act == ACT_QUIT) return 1;
+    if (act == ACT_QUIT) return !upd_installing(&m->upd);
     if (m->view == V_NEST) {
         if (act == ACT_OK) {
             if (run_sh("fix-nest.sh", m->err, (int)sizeof m->err)) { m->view = V_NEST_OK; m->err[0] = 0; }
@@ -408,6 +417,18 @@ static int handle(Model *m, int act, int arg)
         if (act == ACT_BACK || act == ACT_ABOUT || act == ACT_OK) m->view = V_MAIN;
         return 0;
     }
+    if (m->view == V_UPDATED) {
+        /* the new version is in place: tile.sh opens it */
+        if (act == ACT_OK) { g_exit = UPD_RESTART; return 1; }
+        return 0;
+    }
+    if (m->view == V_UPDATE) {
+        if (act == ACT_OK) { m->view = V_MAIN; m->err[0] = 0; upd_start(&m->upd, g_app, "bananads-lan", 1); }
+        else if (act == ACT_BACK) m->view = V_MAIN;
+        return 0;
+    }
+    /* while it installs, the app stays open and the list stays as it is */
+    if (upd_installing(&m->upd) && act != ACT_UP && act != ACT_DOWN && act != ACT_ABOUT) return 0;
     if (m->view == V_UNINSTALL) {
         if (act == ACT_OK) {
             if (run_sh("uninstall.sh", m->err, (int)sizeof m->err)) return 1;
@@ -432,6 +453,9 @@ static int handle(Model *m, int act, int arg)
         if (m->cursor == ROW_MP) {
             run_sh(m->enabled ? "revert.sh" : "apply.sh", m->err, (int)sizeof m->err);
             load_state(m);
+        } else if (m->cursor == ROW_UPDATES && act != ACT_LEFT && act != ACT_RIGHT && !upd_running(&m->upd)) {
+            if (m->upd.state == UPD_AVAILABLE) m->view = V_UPDATE;
+            else upd_start(&m->upd, g_app, "bananads-lan", 0);
         }
         break;
     default: break;
@@ -533,6 +557,7 @@ int main(void)
     px_settings_read(NULL, &g_settings);
     px_pal_make(&px, &g_settings);
     px_lang_set(g_settings.language, view_tr);
+    px_lang_add(upd_tr);
     if (!display_open()) return 1;
     g_buf[0] = calloc((size_t)g_w * (size_t)g_h, sizeof(uint32_t));
     g_buf[1] = calloc((size_t)g_w * (size_t)g_h, sizeof(uint32_t));
@@ -540,15 +565,30 @@ int main(void)
     if (!px_fonts_load(NULL)) fprintf(stderr, "bananads-lan: Pixelify Sans was not found\n");
     ndev = open_inputs(dev, 32);
     load_state(&m);
+    copy_str(m.upd.current, sizeof m.upd.current, m.version);
+    /* a look for a newer version as it opens (in the background: no network just says so) */
+    if (m.view == V_MAIN) upd_start(&m.upd, g_app, "bananads-lan", 0);
     status_tick(&m);
+    m.dots = 1;
     while (!g_stop) {
         struct pollfd pf[32];
-        int r, act = ACT_NONE, arg = 0;
+        int r, act = ACT_NONE, arg = 0, busy = upd_running(&m.upd);
         if (dirty) draw(&m);
         dirty = 0;
         for (i = 0; i < ndev; i++) { pf[i].fd = dev[i].fd; pf[i].events = POLLIN; pf[i].revents = 0; }
-        r = poll(pf, (nfds_t)ndev, 1000);
+        r = poll(pf, (nfds_t)ndev, busy ? 200 : 1000);
         if (r < 0) { if (errno == EINTR) continue; break; }
+        if (busy) {
+            int d = (int)((ticks() / 400) % 3) + 1;
+            if (d != m.dots) { m.dots = d; dirty = 1; }
+            if (upd_poll(&m.upd)) {
+                dirty = 1;
+                if (!upd_running(&m.upd) && m.upd.installing && m.upd.state == UPD_DONE) {
+                    m.view = V_UPDATED;
+                    load_state(&m);
+                }
+            }
+        }
         if (r == 0) {                            /* a quiet second: only the clock and the battery can change */
             if (status_tick(&m)) dirty = 1;
             continue;
@@ -590,5 +630,5 @@ int main(void)
     free(g_buf[0]);
     free(g_buf[1]);
     px_fonts_free();
-    return 0;
+    return g_exit;
 }

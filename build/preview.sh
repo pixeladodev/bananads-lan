@@ -23,5 +23,5 @@ export BANANA_THEMES="${BANANA_THEMES:-$ROOT/dist/no-card-themes}"
 mkdir -p "$OUT" "$ROOT/dist"
 UI=$ROOT/app/ui
 $CC -O2 -Wall -Wextra -I "$UI/third_party" -o "$ROOT/dist/preview-ui" \
-    "$UI/preview.c" "$UI/view.c" "$UI/pixel.c" "$UI/pixel_png.c" "$UI/stb_impl.c" -lm
+    "$UI/preview.c" "$UI/view.c" "$UI/pixel.c" "$UI/updater.c" "$UI/pixel_png.c" "$UI/stb_impl.c" -lm
 "$ROOT/dist/preview-ui" "$OUT"

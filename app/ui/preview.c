@@ -22,6 +22,10 @@ static Model base(void)
     snprintf(m.ip, sizeof m.ip, "192.168.18.184");
     m.battery = 82;
     snprintf(m.clock, sizeof m.clock, "14:30");
+    m.upd.state = UPD_UPTODATE;
+    snprintf(m.upd.current, sizeof m.upd.current, "0.3.0");
+    snprintf(m.upd.latest, sizeof m.upd.latest, "0.3.0");
+    m.dots = 2;
     return m;
 }
 
@@ -39,6 +43,7 @@ static int shot(const char *dir, const char *name, int w, int h, const char *the
     snprintf(st.accent, sizeof st.accent, "%s", accent);
     px_pal_make(&px, &st);
     px_lang_set(lang, view_tr);
+    px_lang_add(upd_tr);
     px_canvas(&top, buf, w, h);
     px_canvas(&bot, buf + (size_t)w * (size_t)(h + gap), w, h);
     {
@@ -98,6 +103,39 @@ int main(int argc, char **argv)
     ok &= shot(dir, "on", 640, 480, "user:ocean", "yellow", "en", &m);
     m.enabled = 0;
     ok &= shot(dir, "off", 640, 480, "user:sunset", "yellow", "es", &m);
+    /* the updater: what the Updates row says, the question before it installs, its progress, its end */
+    m = base();
+    m.cursor = ROW_UPDATES;
+    ok &= shot(dir, "update-uptodate", 1024, 768, "dark", "yellow", "en", &m);
+    m.upd.state = UPD_AVAILABLE;
+    snprintf(m.upd.latest, sizeof m.upd.latest, "0.3.1");
+    ok &= shot(dir, "update-available", 640, 480, "dark", "yellow", "es", &m);
+    ok &= shot(dir, "update-available", 640, 480, "light", "yellow", "en", &m);
+    m.view = V_UPDATE;
+    ok &= shot(dir, "update-confirm", 640, 480, "light", "yellow", "es", &m);
+    m.view = V_MAIN;
+    m.upd.state = UPD_DOWNLOADING;
+    m.upd.installing = 1;
+    m.upd.pid = 1;                 /* (a running job, for the greyed keys) */
+    m.upd.pct = 46;
+    ok &= shot(dir, "update-downloading", 640, 480, "dark", "yellow", "es", &m);
+    ok &= shot(dir, "update-downloading", 1024, 768, "light", "yellow", "en", &m);
+    m.upd.state = UPD_INSTALLING;
+    ok &= shot(dir, "update-installing", 640, 480, "dark", "yellow", "en", &m);
+    m.upd.pid = 0;
+    m.upd.state = UPD_FAILED;
+    snprintf(m.upd.msg, sizeof m.upd.msg, "Download damaged");
+    ok &= shot(dir, "update-failed", 640, 480, "dark", "yellow", "es", &m);
+    m.upd.state = UPD_OFFLINE;
+    m.upd.installing = 0;
+    m.upd.msg[0] = 0;
+    ok &= shot(dir, "update-offline", 640, 480, "light", "yellow", "en", &m);
+    m.upd.state = UPD_DONE;
+    m.upd.installing = 1;
+    snprintf(m.upd.current, sizeof m.upd.current, "0.3.1");
+    snprintf(m.version, sizeof m.version, "0.3.1");
+    m.view = V_UPDATED;
+    ok &= shot(dir, "update-done", 640, 480, "dark", "yellow", "es", &m);
     m = base();
     m.view = V_NEST;
     ok &= shot(dir, "nest", 640, 480, "light", "green", "en", &m);

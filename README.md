@@ -48,13 +48,20 @@ If you see `store/apps/bananads-lan/bananads-lan/`, the folder went one level to
 
 Open BananaDS LAN from Apps:
 
-- **A** turns Local multiplayer on or off
+- **A** turns Local multiplayer on or off, or, on **Updates**, looks for and installs a newer version
+- **SELECT** shows About: version, author, source code and credits
 - **Y** uninstalls the app (it asks first)
 - **B** goes back to the menu
 
 When it is on, every DS game you open uses BananaDS with Local multiplayer. It stays on after a reboot until you turn it off or uninstall it.
 
 Local multiplayer is set to **Auto**, so it is plug and play: open the same game on each console, go to the game's own wireless or multiplayer mode, and the consoles find each other. You can also pick Host or Join yourself from the in-game menu, on the Local multiplayer page.
+
+## Updates
+
+The app looks for a newer release on GitHub each time it opens; the **Updates** row says what it found. A on it, then A again, downloads the new zip, checks it against the SHA-256 GitHub lists for it, and installs it the way the Store does (a new folder beside the old one, then a swap), so a failed download or a damaged zip changes nothing. If Local multiplayer was on, it stays on with the new BananaDS. Then A opens the new version. A release made for another BananaOS is not installed over one that works.
+
+`app/update.py` does the work (`python3 update.py check` or `install`); `build/update-selftest.py` runs it against a fake GitHub on localhost.
 
 ## Uninstall
 

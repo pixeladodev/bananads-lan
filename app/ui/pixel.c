@@ -402,7 +402,7 @@ void px_pal_make(PxPal *p, const PxSettings *st)
 
 /* ---- translations ------------------------------------------------------------------------------------------ */
 
-static const PxTr *g_tr;
+static const PxTr *g_tr, *g_tr2;
 static char g_lang[16] = "en";
 
 void px_lang_set(const char *code, const PxTr *table)
@@ -423,7 +423,14 @@ const char *px_tr(const char *en)
     if (!g_tr || !px_lang_is("es")) return en;
     for (t = g_tr; t->en; t++)
         if (!strcmp(t->en, en)) return t->es ? t->es : en;
+    for (t = g_tr2; t && t->en; t++)
+        if (!strcmp(t->en, en)) return t->es ? t->es : en;
     return en;
+}
+
+void px_lang_add(const PxTr *table)
+{
+    g_tr2 = table;
 }
 
 /* ---- fonts: glyphs rendered as they are asked for, per face and pixel size --------------------------------- */

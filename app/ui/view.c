@@ -13,7 +13,6 @@ int g_nhits;
 const PxTr view_tr[] = {
     { "Local multiplayer", "Multijugador local" },
     { "Updates", "Actualizaciones" },
-    { "Coming soon", "Próximamente" },
     { "Uninstall", "Desinstalar" },
     { "On", "Encendido" },
     { "Off", "Apagado" },
@@ -40,8 +39,6 @@ const PxTr view_tr[] = {
       "Cada juego de DS que abras usa BananaDS con multijugador local. Sigue encendido al reiniciar." },
     { "Turned off, your games use the BananaDS that came with BananaOS.",
       "Apagado, tus juegos usan el BananaDS que vino con BananaOS." },
-    { "Updates from inside the app are on the way. For now, get new versions from the GitHub releases.",
-      "Las actualizaciones desde la app están en camino. Por ahora, descarga las versiones nuevas desde GitHub." },
     { "About", "Acerca de" },
     { "Version", "Versión" },
     { "Made by", "Hecha por" },
@@ -88,7 +85,8 @@ static void add_face_hit(PxRect r, int id)
 int view_row_enabled(const Model *m, int row)
 {
     (void)m;
-    return row != ROW_UPDATES;
+    (void)row;
+    return 1;
 }
 
 static const char *model_name(const char *id)
@@ -149,7 +147,12 @@ void view_top(PxCanvas *c, const Model *m)
     stat(c, 330, 254, 260, T("DS emulator"), is_bananads(m) ? "BananaDS" : T("Not BananaDS"),
          is_bananads(m) ? px.ink : px.warn);
 
-    stat(c, 42, 322, 260, T("App version"), m->version[0] ? m->version : "?", px.ink);
+    if (m->upd.state == UPD_AVAILABLE) {
+        char avail[64];
+        snprintf(avail, sizeof avail, T("v%s available"), m->upd.latest);
+        snprintf(buf, sizeof buf, "%s  ·  %s", m->version[0] ? m->version : "?", avail);
+        stat(c, 42, 322, 556, T("App version"), buf, px.ink);
+    } else stat(c, 42, 322, 260, T("App version"), m->version[0] ? m->version : "?", px.ink);
 
     px_line_h(c, 42, 380, 556, 2, px.edge, 70);
     if (m->err[0]) { msg = m->err; msg_rgb = px.warn; }
@@ -169,19 +172,40 @@ static void row(PxCanvas *c, const Model *m, int i, float y)
     px_text_fit(c, PX_MEDIUM, 20, 38, y + 14, title, ink, 0, 330, PX_LEFT);
     if (i == ROW_MP)
         px_value_arrows(c, 584, y + 14, 20, m->enabled ? T("On") : T("Off"), sel ? ink : px.ink, 1, 1);
-    else if (i == ROW_UPDATES)
-        px_text_fit(c, PX_REGULAR, 18, 584, y + 16, T("Coming soon"), sub, 0, 220, PX_RIGHT);
+    else if (i == ROW_UPDATES) {
+        char buf[64];
+        int d;
+        uint32_t v = upd_lit(&m->upd) || upd_running(&m->upd) ? (sel ? px.on_pick : px.ink)
+                                                              : sel ? px.on_pick_sub : px.muted;
+        upd_value(&m->upd, buf, sizeof buf, &d, m->dots);
+        if (m->upd.state == UPD_DOWNLOADING) {
+            /* the percentage in a box of its own (the word beside it stays put), and a bar along the card */
+            char pct[8];
+            int p = m->upd.pct < 0 ? 0 : m->upd.pct > 100 ? 100 : m->upd.pct;
+            float pw = px_text_w(c, PX_MEDIUM, 20, "100%", 0);
+            snprintf(pct, sizeof pct, "%d%%", p);
+            px_text(c, PX_MEDIUM, 20, 584 - px_text_w(c, PX_MEDIUM, 20, pct, 0), y + 14, pct, v, 0);
+            px_text_fit(c, PX_MEDIUM, 20, 584 - pw - 10, y + 14, T("Downloading"), v, 0, 240, PX_RIGHT);
+            px_rect(c, 30, y + 46, 564, 3, sel ? px.on_pick_sub : px.line);
+            px_rect(c, 30, y + 46, 564.0f * p / 100, 3, sel ? px.on_pick : px.accent.base);
+        } else if (d >= 0) px_text_dots(c, PX_MEDIUM, 20, 584, y + 14, buf, d, v, 0, PX_RIGHT);
+        else px_text_fit(c, PX_MEDIUM, 20, 584, y + 14, buf, v, 0, 300, PX_RIGHT);
+    }
+    (void)sub;
     add_hit(c, 18, y, 588, 54, HIT_ROW, i);
 }
 
 static void help(PxCanvas *c, const Model *m)
 {
+    char buf[320];
     const char *s;
     if (m->cursor == ROW_MP)
         s = m->enabled ? T("Every DS game you open uses BananaDS with local multiplayer. It stays on after a reboot.")
                        : T("Turned off, your games use the BananaDS that came with BananaOS.");
-    else
-        s = T("Updates from inside the app are on the way. For now, get new versions from the GitHub releases.");
+    else {
+        upd_help(&m->upd, "BananaDS LAN", buf, sizeof buf);
+        s = buf;
+    }
     px_text_wrap(c, PX_REGULAR, 18, 30, 232, s, px.muted, 574, 5, 26);
 }
 
@@ -249,10 +273,12 @@ void view_bottom(PxCanvas *c, const Model *m)
     if (m->view == V_MAIN) {
         PxFace f[4];
         PxRect hr[4];
-        f[0].key = "B"; f[0].label = T("Exit"); f[0].dis = 0;
+        int inst = upd_installing(&m->upd);
+        f[0].key = "B"; f[0].label = T("Exit"); f[0].dis = inst;
         f[1].key = "SELECT"; f[1].label = T("About"); f[1].dis = 0;
-        f[2].key = "Y"; f[2].label = T("Uninstall"); f[2].dis = 0;
-        f[3].key = "A"; f[3].label = T("Change"); f[3].dis = !view_row_enabled(m, m->cursor);
+        f[2].key = "Y"; f[2].label = T("Uninstall"); f[2].dis = inst;
+        f[3].key = "A"; f[3].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : T("Change");
+        f[3].dis = inst || (m->cursor == ROW_UPDATES && upd_running(&m->upd));
         px_faces(c, 422, 4, 2, f, hr);
         add_face_hit(hr[0], HIT_BACK);
         add_face_hit(hr[1], HIT_SELECT);
@@ -265,7 +291,23 @@ void view_bottom(PxCanvas *c, const Model *m)
         return;
     }
     g_nhits = 0;                     /* the list under the question takes no touch */
-    if (m->view == V_UNINSTALL) {
+    if (m->view == V_UPDATE || m->view == V_UPDATED) {
+        char title[96], sub[320];
+        int done = m->view == V_UPDATED;
+        snprintf(title, sizeof title, done ? T("Updated to v%s") : T("Update to v%s?"),
+                 done ? m->upd.current : m->upd.latest);
+        snprintf(sub, sizeof sub, "%s%s%s",
+                 done ? T("A opens the new version.")
+                      : T("It downloads from GitHub and checks it before anything changes. Your settings stay."),
+                 done && m->upd.msg[0] ? " " : "", done ? m->upd.msg : "");
+        dialog(c, title, sub, NULL);
+        if (!done) {
+            px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r);
+            add_face_hit(r, HIT_BACK);
+        }
+        px_face(c, 622, 422, PX_RIGHT, "A", done ? T("Restart") : T("Update"), 0, &r);
+        add_face_hit(r, HIT_OK);
+    } else if (m->view == V_UNINSTALL) {
         dialog(c, T("Uninstall BananaDS LAN?"), m->err[0] ? m->err : T("Turns it off and deletes this app."), NULL);
         px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r);
         add_face_hit(r, HIT_BACK);

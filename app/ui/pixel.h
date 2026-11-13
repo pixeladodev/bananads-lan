@@ -67,6 +67,8 @@ void px_fonts_free(void);
 typedef struct { const char *en, *es; } PxTr;
 void px_lang_set(const char *code, const PxTr *table);
 const char *px_tr(const char *en);
+/* a second table, looked in after the first (a shared module's own lines) */
+void px_lang_add(const PxTr *table);
 int px_lang_is(const char *code);
 
 /* the canvas */

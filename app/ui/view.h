@@ -3,8 +3,9 @@
 #define VIEW_H
 
 #include "pixel.h"
+#include "updater.h"
 
-enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT };
+enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT, V_UPDATE, V_UPDATED };
 enum { ROW_MP, ROW_UPDATES, ROW_COUNT };
 /* what a touch on the bottom panel does */
 enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_SELECT };
@@ -15,6 +16,8 @@ typedef struct {
     char ip[48];                 /* wlan0's IPv4 address, empty without one */
     char err[240];               /* the last script's complaint */
     int view, cursor;
+    PxUpdate upd;                /* the Updates row: update.py's last word */
+    int dots;                    /* the animated dots, 1-3 */
     int battery, charging;
     char clock[16];
 } Model;

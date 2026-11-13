@@ -5,10 +5,16 @@ APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 . "$APP/common.sh"
 mp_clean_junk
 chmod a+x "$APP/ui/bananads-lan" "$APP/apply.sh" "$APP/revert.sh" "$APP/status.sh" \
-    "$APP/run-nds-lan" "$APP/uninstall.sh" "$APP/fix-nest.sh" 2>/dev/null || true
+    "$APP/run-nds-lan" "$APP/uninstall.sh" "$APP/fix-nest.sh" "$APP/update.py" "$APP/post-install.sh" 2>/dev/null || true
 # the shelf's picture for this tile: banana-ui looks for store/tiles/media/box/<tile name>.png
 BOX=/data/store/tiles/media/box
 if [ -f "$APP/tile.png" ] && ! cmp -s "$APP/tile.png" "$BOX/BananaDS LAN.png" 2>/dev/null; then
     mkdir -p "$BOX" 2>/dev/null && cp "$APP/tile.png" "$BOX/BananaDS LAN.png" 2>/dev/null || true
 fi
-exec "$APP/ui/bananads-lan"
+"$APP/ui/bananads-lan"
+rc=$?
+# 75: the app has just updated itself (its folder is the new version now): open the new one
+if [ "$rc" = 75 ] && [ -f "$APP/tile.sh" ]; then
+    exec sh "$APP/tile.sh"
+fi
+exit "$rc"

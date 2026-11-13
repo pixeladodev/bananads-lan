@@ -1,5 +1,6 @@
 {
   "check": "bin/bananads",
   "launch": "tile.sh",
+  "post_install": "post-install.sh",
   "pre_remove": "revert.sh"
 }
