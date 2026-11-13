@@ -2,7 +2,7 @@
 # Print release body: release-notes/<ver>.md plus checksum and GPL links from the manifest.
 set -euo pipefail
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-"$ROOT/build/check-release-notes.sh"
+"$ROOT/build/check-release-notes.sh" >&2  # (its "ok" line is a log, not part of the notes)
 ver=$(sed -n 's/^app_version=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 sd=$(sed -n 's/^superdrastic=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 melon=$(sed -n 's/^melonds=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
