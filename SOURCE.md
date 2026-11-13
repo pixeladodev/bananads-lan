@@ -2,7 +2,7 @@
 
 BananaDS in this app is built from:
 
-- https://github.com/pixeladodev/SuperDrastic/commit/0cac6dedccfc9f10d1c611536bfa6c77f0b40093 (branch `bananads-lan-0.5.2.2`: BananaOS 0.5.2.2's BananaDS, JorreFog/SuperDrastic d941c8f, with the two BananaDS patches BananaOS 0.5.2.2 applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings on top)
+- https://github.com/pixeladodev/SuperDrastic/commit/49325d67ff88b022fc644e8e3187be2a6dd7c895 (branch `bananads-lan-0.5.3.4`: BananaOS 0.5.3.4's BananaDS, JorreFog/SuperDrastic 5ecd2f7, with the three BananaDS patches BananaOS 0.5.3.4 applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings on top)
 - melonDS https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 - the melonDS patches in that SuperDrastic tree, `bananads/patches/melonds/`
 

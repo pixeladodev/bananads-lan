@@ -1,7 +1,13 @@
-app_version=0.2.0
-bananaos=0.5.2.2
-stock_sha_rgds=ea1e540b65d51e7261240979e4dcb29948b8947a7f4906b815527c88ea0db7f5
-stock_sha_rgds_plus=490aa782710642591ab70485956e435eeb14e764a7bf5caf123adeefdd154234
-binary_sha=59ee91e7c40253a14540dfc01274abc2401754c7610b6dd90b151e3d2fee5b78
-superdrastic=0cac6dedccfc9f10d1c611536bfa6c77f0b40093
+app_version=0.3.0
+bananaos=0.5.3.4
+stock_sha_rgds=c38a14a862b27ed82bd9c4e688c3fbcbbb5d9d1d86a363d05eab5af89c224608
+stock_sha_rgds_plus=730caffc6f66ddc9fe20effef74c763fdb641b09c6268f64d573a6dded9eb084
+binary_sha=51263a41ef9e06173dadc978394ae3aedb57c8b9d88edd0167c9bac47ede9d1e
+superdrastic=49325d67ff88b022fc644e8e3187be2a6dd7c895
 melonds=906e9ebb27da8c6a715cd7abab4abfe8a8d29427
+# Draft for BananaOS 0.5.3.4:
+# - stock_sha_rgds / stock_sha_rgds_plus: /usr/bin/bananads in rootfs.squashfs of BananaOS 0.5.3.4's
+#   banana-rgds-0.5.3.4.update.tar and banana-rgds-plus-0.5.3.4.update.tar (the release's SHA256SUMS checked), to be
+#   confirmed on each handheld after it updates, with this app Off.
+# - binary_sha: the local build. build/release-build.sh fetches superdrastic from GitHub, so it can only confirm or
+#   replace this value once that commit is pushed.
