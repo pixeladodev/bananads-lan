@@ -37,14 +37,14 @@ if [ -n "${CC:-}" ]; then
         [ -n "$SYS" ] && [ -d "$SYS/usr/include/libdrm" ] && DRM_INC="$SYS/usr/include/libdrm"
     fi
     "$CC" -O2 -Wall -Wextra ${DRM_INC:+-I"$DRM_INC"} -I"$ROOT/app/ui/third_party" -o "$APP/ui/bananads-lan" \
-        "$ROOT/app/ui/main.c" "$ROOT/app/ui/stb_impl.c" -ldrm -lm
+        "$ROOT/app/ui/main.c" "$ROOT/app/ui/view.c" "$ROOT/app/ui/pixel.c" "$ROOT/app/ui/stb_impl.c" -ldrm -lm
 elif docker image inspect bananads-build:1 >/dev/null 2>&1; then
     docker run --rm --platform linux/amd64 -v "$ROOT:/src:ro" -v "$APP/ui:/out" bananads-build:1 \
         /workspace/bananads-lan-test/aarch64--glibc--stable-2025.08-1/bin/aarch64-buildroot-linux-gnu-gcc \
         -O2 -Wall -Wextra \
         -I/workspace/bananads-lan-test/aarch64--glibc--stable-2025.08-1/aarch64-buildroot-linux-gnu/sysroot/usr/include/libdrm \
         -I/src/app/ui/third_party -o /out/bananads-lan \
-        /src/app/ui/main.c /src/app/ui/stb_impl.c -ldrm -lm
+        /src/app/ui/main.c /src/app/ui/view.c /src/app/ui/pixel.c /src/app/ui/stb_impl.c -ldrm -lm
 else
     echo "set CC to an aarch64 gcc with libdrm, or build where bananads-build:1 exists" >&2
     exit 1

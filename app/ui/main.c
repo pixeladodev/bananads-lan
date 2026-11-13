@@ -1,12 +1,16 @@
 /* BananaDS LAN: On/Off on both panels. Uninstall turns it off and removes the app.
-   Colours are BananaOS's palette (the same values BananaDS's menu uses).
-   The typeface is the system's Pixelify Sans. libdrm, both DSI panels. */
-#include "stb_truetype.h"
+   Drawn in the menu's look by view.c and pixel.c (the theme and accent from settings.conf, Pixelify Sans).
+   libdrm, both DSI panels; the buttons, and touch on the bottom panel. */
+#include "view.h"
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <ifaddrs.h>
+#include <limits.h>
 #include <linux/input.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -14,21 +18,11 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 #include <drm_fourcc.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
-
-#define C_BG    0x191820
-#define C_PANEL 0x211f26
-#define C_BLUE  0xf0b429
-#define C_LIGHT 0xf1ede2
-#define C_GREY  0xa39d8e
-#define C_ONSEL 0x17161c
-#define C_RED   0xff8a96
-#define C_DIM   0x6b6559
-
-enum { ACT_NONE, ACT_TOGGLE, ACT_QUIT, ACT_UNINSTALL };
 
 static volatile sig_atomic_t g_stop;
 
@@ -42,117 +36,9 @@ typedef struct {
 
 static int g_fd = -1, g_w, g_h;
 static Panel g_p[2];
-
-static unsigned char *g_ttf;
-static unsigned char g_atlas[512 * 512];
-static stbtt_bakedchar g_glyph[96];
-static int g_px, g_font_ok;
+static uint32_t *g_buf[2];
 
 static char g_app[512];
-
-static void px(Panel *p, int x, int y, uint32_t rgb)
-{
-    uint32_t *row;
-    if (x < 0 || y < 0 || x >= g_w || y >= g_h) return;
-    row = (uint32_t *)(p->map + (size_t)y * p->pitch);
-    row[x] = rgb;
-}
-
-static void blend(Panel *p, int x, int y, uint32_t rgb, int a)
-{
-    uint32_t d, *row;
-    int dr, dg, db, sr, sg, sb;
-    if (a <= 0 || x < 0 || y < 0 || x >= g_w || y >= g_h) return;
-    row = (uint32_t *)(p->map + (size_t)y * p->pitch);
-    if (a >= 255) { row[x] = rgb; return; }
-    d = row[x];
-    dr = (d >> 16) & 255; dg = (d >> 8) & 255; db = d & 255;
-    sr = (rgb >> 16) & 255; sg = (rgb >> 8) & 255; sb = rgb & 255;
-    row[x] = ((dr + (sr - dr) * a / 255) << 16) | ((dg + (sg - dg) * a / 255) << 8) | (db + (sb - db) * a / 255);
-}
-
-static void fill(Panel *p, int x0, int y0, int x1, int y1, uint32_t rgb)
-{
-    int x, y;
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > g_w) x1 = g_w;
-    if (y1 > g_h) y1 = g_h;
-    for (y = y0; y < y1; y++)
-        for (x = x0; x < x1; x++)
-            px(p, x, y, rgb);
-}
-
-static int load_font(void)
-{
-    static const char *const paths[] = {
-        "/usr/share/banana/rnds/fonts/PixelifySans-Medium.ttf",
-        "/usr/share/banana/rnds/fonts/PixelifySans-Regular.ttf",
-        NULL
-    };
-    FILE *f;
-    long n;
-    int i;
-    for (i = 0; paths[i]; i++) {
-        f = fopen(paths[i], "rb");
-        if (!f) continue;
-        if (fseek(f, 0, SEEK_END) != 0) { fclose(f); continue; }
-        n = ftell(f);
-        if (n < 1 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); continue; }
-        g_ttf = malloc((size_t)n);
-        if (!g_ttf || fread(g_ttf, 1, (size_t)n, f) != (size_t)n) {
-            free(g_ttf); g_ttf = NULL; fclose(f); continue;
-        }
-        fclose(f);
-        g_px = g_h / 22;
-        if (g_px < 16) g_px = 16;
-        if (g_px > 42) g_px = 42;
-        if (stbtt_BakeFontBitmap(g_ttf, 0, (float)g_px, g_atlas, 512, 512, 32, 96, g_glyph) <= 0)
-            continue;
-        g_font_ok = 1;
-        return 1;
-    }
-    return 0;
-}
-
-static int text_width(const char *s)
-{
-    float x = 0, y = 0;
-    stbtt_aligned_quad q;
-    for (; *s; s++) {
-        if ((unsigned char)*s < 32 || (unsigned char)*s > 126) { x += g_px / 2.0f; continue; }
-        stbtt_GetBakedQuad(g_glyph, 512, 512, (unsigned char)*s - 32, &x, &y, &q, 1);
-    }
-    return (int)(x + 0.5f);
-}
-
-static void text(Panel *p, int x, int y, const char *s, uint32_t rgb)
-{
-    float xp = (float)x, yp = (float)(y + g_px);
-    stbtt_aligned_quad q;
-    int ix, iy;
-    if (!g_font_ok) return;
-    for (; *s; s++) {
-        int sx, sy, ax, ay;
-        if ((unsigned char)*s < 32 || (unsigned char)*s > 126) { xp += g_px / 2.0f; continue; }
-        stbtt_GetBakedQuad(g_glyph, 512, 512, (unsigned char)*s - 32, &xp, &yp, &q, 1);
-        sx = (int)(q.x1 - q.x0); sy = (int)(q.y1 - q.y0);
-        if (sx < 1 || sy < 1) continue;
-        for (iy = 0; iy < sy; iy++) {
-            int ty = (int)((q.t0 * 512) + (q.t1 - q.t0) * 512 * iy / sy);
-            if (ty < 0) ty = 0;
-            if (ty > 511) ty = 511;
-            for (ix = 0; ix < sx; ix++) {
-                int tx = (int)((q.s0 * 512) + (q.s1 - q.s0) * 512 * ix / sx);
-                if (tx < 0) tx = 0;
-                if (tx > 511) tx = 511;
-                ax = (int)q.x0 + ix;
-                ay = (int)q.y0 + iy;
-                blend(p, ax, ay, rgb, g_atlas[ty * 512 + tx]);
-            }
-        }
-    }
-}
 
 static void planes_upright(void)
 {
@@ -337,13 +223,13 @@ static void present(void)
         drmModeSetCrtc(g_fd, g_p[s].crtc, g_p[s].fb, 0, 0, &g_p[s].conn, 1, &g_p[s].mode);
 }
 
-typedef struct {
-    int supported, enabled, mounted;
-    char reason[240];
-    char emulator[64];
-    char os[32];
-    char version[32];
-} State;
+/* a drawn canvas into its panel's scanout buffer */
+static void blit(int s)
+{
+    int y;
+    for (y = 0; y < g_h; y++)
+        memcpy(g_p[s].map + (size_t)y * g_p[s].pitch, g_buf[s] + (size_t)y * (size_t)g_w, (size_t)g_w * 4);
+}
 
 static void copy_str(char *dst, size_t n, const char *src)
 {
@@ -353,32 +239,63 @@ static void copy_str(char *dst, size_t n, const char *src)
     dst[i] = 0;
 }
 
-static void kv(char *line, const char *key, char *dst, int n)
+static void manifest(const char *key, char *dst, size_t n)
 {
+    char path[640], line[256];
     size_t k = strlen(key);
-    if (n > 0 && strncmp(line, key, k) == 0 && line[k] == '=')
-        copy_str(dst, (size_t)n, line + k + 1);
+    FILE *f;
+    dst[0] = 0;
+    snprintf(path, sizeof path, "%s/manifest", g_app);
+    f = fopen(path, "r");
+    if (!f) return;
+    while (fgets(line, sizeof line, f)) {
+        if (!strncmp(line, key, k) && line[k] == '=') {
+            char *e = line + strlen(line);
+            while (e > line && (e[-1] == '\n' || e[-1] == '\r')) *--e = 0;
+            copy_str(dst, n, line + k + 1);
+            break;
+        }
+    }
+    fclose(f);
 }
 
-static int load_state(State *st)
+/* wlan0's IPv4 address (the home network or Direct Link's 10.42.0.x) */
+static void wlan_ip(char *dst, size_t n)
+{
+    struct ifaddrs *ifa, *i;
+    dst[0] = 0;
+    if (getifaddrs(&ifa) != 0) return;
+    for (i = ifa; i; i = i->ifa_next)
+        if (i->ifa_addr && i->ifa_addr->sa_family == AF_INET && !strcmp(i->ifa_name, "wlan0")) {
+            inet_ntop(AF_INET, &((struct sockaddr_in *)i->ifa_addr)->sin_addr, dst, (socklen_t)n);
+            break;
+        }
+    freeifaddrs(ifa);
+}
+
+static int load_state(Model *m)
 {
     char cmd[640], line[512];
     FILE *f;
-    memset(st, 0, sizeof *st);
-    snprintf(st->emulator, sizeof st->emulator, "unset");
+    m->supported = m->enabled = m->mounted = 0;
+    m->reason[0] = m->os[0] = m->version[0] = m->model[0] = 0;
+    snprintf(m->emulator, sizeof m->emulator, "unset");
+    manifest("bananaos", m->want_os, sizeof m->want_os);
+    wlan_ip(m->ip, sizeof m->ip);
     snprintf(cmd, sizeof cmd, "sh '%s/status.sh' 2>/dev/null", g_app);
     f = popen(cmd, "r");
     if (!f) return 0;
     while (fgets(line, sizeof line, f)) {
         char *nl = strchr(line, '\n');
         if (nl) *nl = 0;
-        if (!strncmp(line, "supported=", 10)) st->supported = !strcmp(line + 10, "yes");
-        else if (!strncmp(line, "enabled=", 8)) st->enabled = !strcmp(line + 8, "yes");
-        else if (!strncmp(line, "mounted=", 8)) st->mounted = !strcmp(line + 8, "yes");
-        else if (!strncmp(line, "reason=", 7)) kv(line, "reason", st->reason, (int)sizeof st->reason);
-        else if (!strncmp(line, "emulator=", 9)) copy_str(st->emulator, sizeof st->emulator, line + 9);
-        else if (!strncmp(line, "os=", 3)) copy_str(st->os, sizeof st->os, line + 3);
-        else if (!strncmp(line, "version=", 8)) copy_str(st->version, sizeof st->version, line + 8);
+        if (!strncmp(line, "supported=", 10)) m->supported = !strcmp(line + 10, "yes");
+        else if (!strncmp(line, "enabled=", 8)) m->enabled = !strcmp(line + 8, "yes");
+        else if (!strncmp(line, "mounted=", 8)) m->mounted = !strcmp(line + 8, "yes");
+        else if (!strncmp(line, "reason=", 7)) copy_str(m->reason, sizeof m->reason, line + 7);
+        else if (!strncmp(line, "emulator=", 9)) copy_str(m->emulator, sizeof m->emulator, line + 9);
+        else if (!strncmp(line, "os=", 3)) copy_str(m->os, sizeof m->os, line + 3);
+        else if (!strncmp(line, "version=", 8)) copy_str(m->version, sizeof m->version, line + 8);
+        else if (!strncmp(line, "model=", 6)) copy_str(m->model, sizeof m->model, line + 6);
     }
     pclose(f);
     return 1;
@@ -403,79 +320,48 @@ static int run_sh(const char *script, char *err, int errn)
     return st == 0;
 }
 
-static void draw(const State *st, const char *err, int confirm)
+static PxSettings g_settings;
+
+/* the status row's battery and clock; 1 when they changed */
+static int status_tick(Model *m)
 {
-    int s, margin, row_y, row_h, y, x;
-    const char *val = st->enabled ? "On" : "Off";
-    char line[160];
-    for (s = 0; s < 2; s++) {
-        Panel *p = &g_p[s];
-        fill(p, 0, 0, g_w, g_h, C_BG);
-        margin = g_w / 18;
-        if (confirm == 2) {
-            text(p, margin, g_h / 6, "One folder too deep.", C_LIGHT);
-            text(p, margin, g_h / 6 + g_px * 2, "bananads-lan/bananads-lan", C_GREY);
-            text(p, margin, g_h / 6 + g_px * 4, "A moves it up one folder.", C_GREY);
-            text(p, margin, g_h - g_px * 2, "A  move it up    B  back", C_GREY);
-            continue;
-        }
-        if (confirm == 3) {
-            text(p, margin, g_h / 5, "Moved.", C_LIGHT);
-            text(p, margin, g_h / 5 + g_px * 2, "Open BananaDS LAN again.", C_GREY);
-            text(p, margin, g_h - g_px * 2, "A  or B  back", C_GREY);
-            continue;
-        }
-        if (confirm) {
-            text(p, margin, g_h / 5, "Uninstall BananaDS LAN?", C_LIGHT);
-            text(p, margin, g_h / 5 + g_px * 2, "Turns it off and deletes this app.", C_GREY);
-            text(p, margin, g_h - g_px * 2, "A  uninstall      B  cancel", C_GREY);
-            continue;
-        }
-        if (s == 0) {
-            text(p, margin, g_h / 7, "BananaDS LAN", C_LIGHT);
-            row_y = g_h / 2 - g_px;
-            row_h = g_px * 2 + g_px / 2;
-            fill(p, margin, row_y, g_w - margin, row_y + row_h, C_BLUE);
-            text(p, margin + g_px, row_y + g_px / 3, "Local multiplayer", C_ONSEL);
-            x = g_w - margin - g_px - text_width(val);
-            text(p, x, row_y + g_px / 3, val, C_ONSEL);
-            text(p, margin, g_h - g_px * 2, "A  toggle    Y  uninstall    B  back", C_GREY);
-        } else {
-            text(p, margin, g_h / 10, "Status", C_LIGHT);
-            y = g_h / 10 + g_px * 2;
-            snprintf(line, sizeof line, "BananaOS %s", st->os[0] ? st->os : "?");
-            text(p, margin, y, line, C_LIGHT);
-            text(p, margin, y + g_px + 8, st->supported ? "Supported" : "Not supported", st->supported ? C_LIGHT : C_RED);
-            y += (g_px + 8) * 2 + g_px / 2;
-            snprintf(line, sizeof line, "Mounted  %s", st->mounted ? "yes" : "no");
-            text(p, margin, y, line, C_GREY);
-            y += g_px + 10;
-            if (!strcmp(st->emulator, "bananads"))
-                snprintf(line, sizeof line, "Emulator  BananaDS");
-            else
-                snprintf(line, sizeof line, "Emulator  not BananaDS");
-            text(p, margin, y, line, !strcmp(st->emulator, "bananads") ? C_GREY : C_RED);
-            y += g_px + 10;
-            text(p, margin, y, "Settings > Nintendo DS > Emulator", C_DIM);
-            y += g_px * 2;
-            snprintf(line, sizeof line, "App %s", st->version[0] ? st->version : "?");
-            text(p, margin, y, line, C_DIM);
-            if (err && err[0])
-                text(p, margin, y + g_px * 2, err, C_RED);
-            else if (!st->supported && st->reason[0])
-                text(p, margin, y + g_px * 2, st->reason, C_RED);
-        }
-    }
+    char clock[16];
+    int ch = 0, bat = px_battery(&ch), changed;
+    px_clock(clock, sizeof clock, &g_settings);
+    changed = bat != m->battery || ch != m->charging || strcmp(clock, m->clock);
+    m->battery = bat;
+    m->charging = ch;
+    copy_str(m->clock, sizeof m->clock, clock);
+    return changed;
+}
+
+static void draw(const Model *m)
+{
+    PxCanvas c;
+    px_canvas(&c, g_buf[0], g_w, g_h);
+    view_top(&c, m);
+    blit(0);
+    px_canvas(&c, g_buf[1], g_w, g_h);
+    view_bottom(&c, m);
+    blit(1);
     present();
 }
 
+enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_QUIT, ACT_ROW };
+
+/* Nintendo layout: A is the east button, B the south one, Y the west one */
 static int key_action(int code, int value)
 {
     if (value != 1) return ACT_NONE;
     switch (code) {
-    case BTN_EAST: case KEY_ENTER: return ACT_TOGGLE;
-    case BTN_WEST: return ACT_UNINSTALL; /* Y, beside B */
-    case BTN_SOUTH: case KEY_BACKSPACE: case KEY_ESC: return ACT_QUIT;
+    case KEY_UP: case BTN_DPAD_UP: return ACT_UP;
+    case KEY_DOWN: case BTN_DPAD_DOWN: return ACT_DOWN;
+    case KEY_LEFT: case BTN_DPAD_LEFT: return ACT_LEFT;
+    case KEY_RIGHT: case BTN_DPAD_RIGHT: return ACT_RIGHT;
+    case BTN_EAST: case KEY_ENTER: return ACT_OK;
+    case BTN_WEST: return ACT_Y;
+    case BTN_SOUTH: case KEY_BACKSPACE: case KEY_ESC: return ACT_BACK;
+    case BTN_START: return ACT_QUIT;
     default: return ACT_NONE;
     }
 }
@@ -506,80 +392,199 @@ static int app_dir(void)
     return 1;
 }
 
+/* one action; returns 1 to leave */
+static int handle(Model *m, int act, int arg)
+{
+    if (act == ACT_QUIT) return 1;
+    if (m->view == V_NEST) {
+        if (act == ACT_OK) {
+            if (run_sh("fix-nest.sh", m->err, (int)sizeof m->err)) { m->view = V_NEST_OK; m->err[0] = 0; }
+        } else if (act == ACT_BACK) return 1;
+        return 0;
+    }
+    if (m->view == V_NEST_OK) return act == ACT_OK || act == ACT_BACK;
+    if (m->view == V_UNINSTALL) {
+        if (act == ACT_OK) {
+            if (run_sh("uninstall.sh", m->err, (int)sizeof m->err)) return 1;
+            m->view = V_MAIN;
+            load_state(m);
+        } else if (act == ACT_BACK) { m->view = V_MAIN; m->err[0] = 0; }
+        return 0;
+    }
+    switch (act) {
+    case ACT_BACK: return 1;
+    case ACT_UP: if (m->cursor > 0) m->cursor--; break;
+    case ACT_DOWN: if (m->cursor < ROW_COUNT - 1) m->cursor++; break;
+    case ACT_Y: m->err[0] = 0; m->view = V_UNINSTALL; break;
+    case ACT_ROW:
+        /* a tap: the row under the finger, and its action when it already had the cursor */
+        if (arg != m->cursor) { m->cursor = arg; break; }
+        /* fall through */
+    case ACT_OK:
+    case ACT_LEFT:
+    case ACT_RIGHT:
+        if (m->cursor == ROW_MP) {
+            run_sh(m->enabled ? "revert.sh" : "apply.sh", m->err, (int)sizeof m->err);
+            load_state(m);
+        } else if (m->cursor == ROW_UNINSTALL && (act == ACT_OK || act == ACT_ROW)) {
+            m->err[0] = 0;
+            m->view = V_UNINSTALL;
+        }
+        break;
+    default: break;
+    }
+    return 0;
+}
+
+static int bit_on(int fd, int ev, int code)
+{
+    unsigned long b[KEY_MAX / (8 * (int)sizeof(long)) + 1];
+    memset(b, 0, sizeof b);
+    if (ioctl(fd, EVIOCGBIT(ev, sizeof b), b) < 0) return 0;
+    return (b[code / (8 * (int)sizeof(long))] >> (code % (8 * (int)sizeof(long)))) & 1;
+}
+
+typedef struct {
+    int fd, touch;
+    int minx, maxx, miny, maxy;
+    int x, y, down, was;
+} Dev;
+
+static int touch_px(int v, int lo, int hi, int span)
+{
+    if (hi <= lo || span <= 0) return 0;
+    if (v < lo) v = lo;
+    if (v > hi) v = hi;
+    return (int)((long)(v - lo) * span / (hi - lo + 1));
+}
+
+/* the bottom panel's touchscreen is the one on fe5e0000.i2c (banana-ui finds it the same way) */
+static int open_inputs(Dev *dev, int max)
+{
+    DIR *d = opendir("/dev/input");
+    struct dirent *e;
+    int n = 0;
+    if (!d) return 0;
+    while ((e = readdir(d)) && n < max) {
+        char path[320], sys[320], real[PATH_MAX];
+        int fd, bottom = 0;
+        if (strncmp(e->d_name, "event", 5)) continue;
+        snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
+        fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+        if (fd < 0) continue;
+        snprintf(sys, sizeof sys, "/sys/class/input/%s/device", e->d_name);
+        if (realpath(sys, real) && strstr(real, "fe5e0000.i2c")) bottom = 1;
+        memset(&dev[n], 0, sizeof dev[n]);
+        dev[n].fd = fd;
+        if (bottom && (bit_on(fd, EV_ABS, ABS_MT_POSITION_X) || bit_on(fd, EV_ABS, ABS_X))) {
+            struct input_absinfo ax, ay;
+            int mx = bit_on(fd, EV_ABS, ABS_MT_POSITION_X) ? ABS_MT_POSITION_X : ABS_X;
+            int my = bit_on(fd, EV_ABS, ABS_MT_POSITION_Y) ? ABS_MT_POSITION_Y : ABS_Y;
+            memset(&ax, 0, sizeof ax);
+            memset(&ay, 0, sizeof ay);
+            ioctl(fd, EVIOCGABS(mx), &ax);
+            ioctl(fd, EVIOCGABS(my), &ay);
+            dev[n].touch = 1;
+            dev[n].minx = ax.minimum;
+            dev[n].maxx = ax.maximum;
+            dev[n].miny = ay.minimum;
+            dev[n].maxy = ay.maximum;
+            dev[n].x = ax.value;
+            dev[n].y = ay.value;
+        }
+        n++;
+    }
+    closedir(d);
+    return n;
+}
+
+/* a touch that lifted: what is under it on the bottom panel */
+static int touch_action(int hx, int hy, int *arg)
+{
+    int h, act = ACT_NONE;
+    for (h = 0; h < g_nhits; h++) {
+        PxRect r = g_hits[h].r;
+        if (hx < r.x || hx >= r.x + r.w || hy < r.y || hy >= r.y + r.h) continue;
+        switch (g_hits[h].id) {
+        case HIT_ROW: act = ACT_ROW; *arg = g_hits[h].arg; break;
+        case HIT_BACK: act = ACT_BACK; break;
+        case HIT_OK: act = ACT_OK; break;
+        case HIT_Y: act = ACT_Y; break;
+        default: break;
+        }
+    }
+    return act;
+}
+
 int main(void)
 {
-    State st;
-    char err[240];
-    int confirm = 0;
-    struct pollfd pf[32];
-    int nf = 0, i;
-    DIR *d;
-    struct dirent *e;
-    err[0] = 0;
+    Model m;
+    Dev dev[32];
+    int ndev, i, dirty = 1;
+    memset(&m, 0, sizeof m);
     signal(SIGTERM, on_signal);
     signal(SIGINT, on_signal);
     if (!app_dir()) { fprintf(stderr, "bananads-lan: cannot find the app directory\n"); return 1; }
-    if (app_is_nested()) confirm = 2;
+    if (app_is_nested()) m.view = V_NEST;
+    px_settings_read(NULL, &g_settings);
+    px_pal_make(&px, &g_settings);
+    px_lang_set(g_settings.language, view_tr);
     if (!display_open()) return 1;
-    if (!load_font()) fprintf(stderr, "bananads-lan: Pixelify Sans was not found\n");
-    d = opendir("/dev/input");
-    if (d) {
-        while ((e = readdir(d)) && nf < 32) {
-            char path[320];
-            int fd;
-            if (strncmp(e->d_name, "event", 5)) continue;
-            snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
-            fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
-            if (fd < 0) continue;
-            pf[nf].fd = fd;
-            pf[nf].events = POLLIN;
-            nf++;
-        }
-        closedir(d);
-    }
-    load_state(&st);
-    draw(&st, err, confirm);
+    g_buf[0] = calloc((size_t)g_w * (size_t)g_h, sizeof(uint32_t));
+    g_buf[1] = calloc((size_t)g_w * (size_t)g_h, sizeof(uint32_t));
+    if (!g_buf[0] || !g_buf[1]) { display_close(); return 1; }
+    if (!px_fonts_load(NULL)) fprintf(stderr, "bananads-lan: Pixelify Sans was not found\n");
+    ndev = open_inputs(dev, 32);
+    load_state(&m);
+    status_tick(&m);
     while (!g_stop) {
-        int r = poll(pf, (nfds_t)nf, 200);
-        int action = ACT_NONE;
+        struct pollfd pf[32];
+        int r, act = ACT_NONE, arg = 0;
+        if (dirty) draw(&m);
+        dirty = 0;
+        for (i = 0; i < ndev; i++) { pf[i].fd = dev[i].fd; pf[i].events = POLLIN; pf[i].revents = 0; }
+        r = poll(pf, (nfds_t)ndev, 1000);
         if (r < 0) { if (errno == EINTR) continue; break; }
-        for (i = 0; i < nf; i++) {
+        if (r == 0) {                            /* a quiet second: only the clock and the battery can change */
+            if (status_tick(&m)) dirty = 1;
+            continue;
+        }
+        for (i = 0; i < ndev; i++) {
             struct input_event ev;
             if (!(pf[i].revents & POLLIN)) continue;
-            while (read(pf[i].fd, &ev, sizeof ev) == (ssize_t)sizeof ev) {
-                int a;
-                if (ev.type != EV_KEY) continue;
-                a = key_action(ev.code, ev.value);
-                if (a) action = a;
+            while (read(dev[i].fd, &ev, sizeof ev) == (ssize_t)sizeof ev) {
+                if (dev[i].touch) {
+                    if (ev.type == EV_ABS && (ev.code == ABS_MT_POSITION_X || ev.code == ABS_X)) dev[i].x = ev.value;
+                    else if (ev.type == EV_ABS && (ev.code == ABS_MT_POSITION_Y || ev.code == ABS_Y)) dev[i].y = ev.value;
+                    else if (ev.type == EV_ABS && ev.code == ABS_MT_TRACKING_ID) dev[i].down = ev.value >= 0;
+                    else if (ev.type == EV_KEY && ev.code == BTN_TOUCH) dev[i].down = ev.value != 0;
+                    else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
+                        if (!dev[i].down && dev[i].was) {
+                            int hx = touch_px(dev[i].x, dev[i].minx, dev[i].maxx, g_w);
+                            int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
+                            int a = touch_action(hx, hy, &arg);
+                            if (a) act = a;
+                        }
+                        dev[i].was = dev[i].down;
+                    }
+                    continue;
+                }
+                if (ev.type == EV_KEY) {
+                    int a = key_action(ev.code, ev.value);
+                    if (a) act = a;
+                }
             }
         }
-        if (action == ACT_QUIT) {
-            if (confirm == 2 || confirm == 3) break;
-            if (!confirm) break;
-            confirm = 0;
-            err[0] = 0;
-            draw(&st, err, confirm);
-        } else if (action == ACT_TOGGLE && confirm == 3) {
-            break;
-        } else if (action == ACT_TOGGLE && confirm == 2) {
-            if (run_sh("fix-nest.sh", err, (int)sizeof err)) confirm = 3;
-            draw(&st, err, confirm);
-        } else if (action == ACT_UNINSTALL && !confirm) {
-            confirm = 1;
-            draw(&st, err, confirm);
-        } else if (action == ACT_TOGGLE && confirm) {
-            if (run_sh("uninstall.sh", err, (int)sizeof err)) break;
-            confirm = 0;
-            load_state(&st);
-            draw(&st, err, confirm);
-        } else if (action == ACT_TOGGLE) {
-            run_sh(st.enabled ? "revert.sh" : "apply.sh", err, (int)sizeof err);
-            load_state(&st);
-            draw(&st, err, confirm);
+        if (act != ACT_NONE) {
+            if (handle(&m, act, arg)) break;
+            dirty = 1;
         }
+        if (status_tick(&m)) dirty = 1;
     }
-    for (i = 0; i < nf; i++) close(pf[i].fd);
+    for (i = 0; i < ndev; i++) close(dev[i].fd);
     display_close();
-    free(g_ttf);
+    free(g_buf[0]);
+    free(g_buf[1]);
+    px_fonts_free();
     return 0;
 }
