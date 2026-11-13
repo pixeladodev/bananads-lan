@@ -9,7 +9,8 @@ esac
 . "$APP/common.sh"
 mp_revert
 rm -f "/data/store/tiles/BananaDS LAN.sh" "/data/store/tiles/._BananaDS LAN.sh" \
-    "/data/store/tiles/.DS_Store"
+    "/data/store/tiles/.DS_Store" "/data/store/tiles/media/box/BananaDS LAN.png"
+rmdir /data/store/tiles/media/box /data/store/tiles/media 2>/dev/null || true
 cd /
 rm -rf "$APP"
 rm -f "/data/store/apps/._bananads-lan" "/data/store/apps/.DS_Store"

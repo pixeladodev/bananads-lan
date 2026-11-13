@@ -7,6 +7,8 @@
 
 #include <dirent.h>
 #include <math.h>
+#include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -125,41 +127,277 @@ static const struct { const char *name; PxAccent a; } ACCENTS[] = {
     { "pink",   { 0xec6fa8, 0xffc6e0, 0x7a1f4a, 0xf59cc4, 0xc9508a } },
 };
 
+/* ---- themes: banana/themes/<name>.json (settings.conf's theme = user:<name>) ----------------------------------
+   The same reading as banana-ui's theme.cpp: "base" (dark or light), "accent" (a colour, one of the names, or
+   {base, light, dark, band, low}), "colors" (the palette's colours by name), "background.dither". The rest (fonts,
+   pictures, screens, sounds) is the menu's own. */
+
+#define TH_MAX 96
+typedef struct { char k[48], v[48]; } ThKv;
+typedef struct { ThKv kv[TH_MAX]; int n; const char *s; size_t i, len; int ok; } Th;
+
+static void th_ws(Th *t)
+{
+    while (t->i < t->len) {
+        char ch = t->s[t->i];
+        if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == ',' || ch == ':') { t->i++; continue; }
+        if (ch == '/' && t->i + 1 < t->len && t->s[t->i + 1] == '/') {
+            while (t->i < t->len && t->s[t->i] != '\n') t->i++;
+            continue;
+        }
+        if (ch == '/' && t->i + 1 < t->len && t->s[t->i + 1] == '*') {
+            const char *e = strstr(t->s + t->i + 2, "*/");
+            t->i = e ? (size_t)(e - t->s) + 2 : t->len;
+            continue;
+        }
+        break;
+    }
+}
+
+static void th_str(Th *t, char *out, size_t n)
+{
+    size_t k = 0;
+    if (t->s[t->i] != '"') { t->ok = 0; return; }
+    for (t->i++; t->i < t->len && t->s[t->i] != '"'; t->i++) {
+        char ch = t->s[t->i];
+        if (ch == '\\' && t->i + 1 < t->len) ch = t->s[++t->i];
+        if (out && k + 1 < n) out[k++] = ch;
+    }
+    if (out && n) out[k] = 0;
+    if (t->i >= t->len) t->ok = 0;
+    t->i++;
+}
+
+static int th_keep(const char *k)
+{
+    return !strcmp(k, "base") || !strcmp(k, "name") || !strncmp(k, "accent", 6) || !strncmp(k, "colors.", 7) ||
+           !strcmp(k, "background.dither");
+}
+
+static void th_put(Th *t, const char *k, const char *v)
+{
+    if (!th_keep(k) || t->n >= TH_MAX) return;
+    put(t->kv[t->n].k, sizeof t->kv[t->n].k, k);
+    put(t->kv[t->n].v, sizeof t->kv[t->n].v, v);
+    t->n++;
+}
+
+static void th_value(Th *t, const char *key, int depth);
+
+static void th_object(Th *t, const char *prefix, int depth)
+{
+    t->i++;  /* { */
+    while (t->ok) {
+        char k[64], full[128];
+        th_ws(t);
+        if (t->i >= t->len) { t->ok = 0; return; }
+        if (t->s[t->i] == '}') { t->i++; return; }
+        th_str(t, k, sizeof k);
+        if (!t->ok) return;
+        snprintf(full, sizeof full, "%s%s%s", prefix, prefix[0] ? "." : "", k);
+        th_value(t, full, depth + 1);
+    }
+}
+
+static void th_value(Th *t, const char *key, int depth)
+{
+    th_ws(t);
+    if (t->i >= t->len || depth > 32) { t->ok = 0; return; }
+    if (t->s[t->i] == '"') {
+        char v[64];
+        th_str(t, v, sizeof v);
+        th_put(t, key, v);
+    } else if (t->s[t->i] == '{') th_object(t, key, depth);
+    else if (t->s[t->i] == '[') {
+        int d = 0;
+        do {
+            char ch = t->s[t->i];
+            if (ch == '"') { th_str(t, NULL, 0); continue; }
+            if (ch == '[') d++;
+            else if (ch == ']') d--;
+            t->i++;
+        } while (t->ok && t->i < t->len && d > 0);
+    } else {
+        char v[48];
+        size_t k = 0;
+        while (t->i < t->len && (isalnum((unsigned char)t->s[t->i]) || strchr(".-+", t->s[t->i]))) {
+            if (k + 1 < sizeof v) v[k++] = t->s[t->i];
+            t->i++;
+        }
+        v[k] = 0;
+        if (!k) { t->ok = 0; return; }
+        th_put(t, key, v);
+    }
+}
+
+static const char *th_get(const Th *t, const char *k)
+{
+    int i;
+    for (i = 0; i < t->n; i++)
+        if (!strcmp(t->kv[i].k, k)) return t->kv[i].v;
+    return "";
+}
+
+/* "#rgb", "#rrggbb", "#rrggbbaa": the colour and its opacity */
+static int th_color(const char *v, uint32_t *rgb, int *alpha)
+{
+    char h[9];
+    size_t n, i;
+    unsigned long x;
+    if (v[0] != '#') return 0;
+    v++;
+    n = strlen(v);
+    for (i = 0; i < n; i++) if (!isxdigit((unsigned char)v[i])) return 0;
+    if (n == 3) { snprintf(h, sizeof h, "%c%c%c%c%c%cff", v[0], v[0], v[1], v[1], v[2], v[2]); }
+    else if (n == 6) snprintf(h, sizeof h, "%sff", v);
+    else if (n == 8) snprintf(h, sizeof h, "%s", v);
+    else return 0;
+    x = strtoul(h, NULL, 16);
+    *rgb = (uint32_t)(x >> 8) & 0xffffff;
+    if (alpha) *alpha = (int)(x & 0xff);
+    return 1;
+}
+
+/* the theme file a settings value names ("user:<name>": the card's banana/themes first, then the system's) */
+static int theme_path(const char *value, char *out, size_t n)
+{
+    const char *card = getenv("BANANA_THEMES"), *image = getenv("PIXEL_UI_THEMES_IMAGE");
+    FILE *f;
+    if (!strncmp(value, "file:", 5)) { put(out, n, value + 5); return 1; }
+    if (strncmp(value, "user:", 5) || !value[5] || strchr(value + 5, '/')) return 0;
+    snprintf(out, n, "%s/%s.json", card && card[0] ? card : "/data/banana/themes", value + 5);
+    if ((f = fopen(out, "r"))) { fclose(f); return 1; }
+    snprintf(out, n, "%s/%s.json", image && image[0] ? image : "/usr/share/banana/themes", value + 5);
+    return 1;
+}
+
+static int theme_read(const char *value, Th *t)
+{
+    char path[512];
+    unsigned char *b;
+    FILE *f;
+    long len;
+    memset(t, 0, sizeof *t);
+    if (!theme_path(value, path, sizeof path)) return 0;
+    f = fopen(path, "rb");
+    if (!f) return 0;
+    if (fseek(f, 0, SEEK_END) || (len = ftell(f)) < 2 || len > 4 * 1024 * 1024 || fseek(f, 0, SEEK_SET)) {
+        fclose(f);
+        return 0;
+    }
+    b = malloc((size_t)len + 1);
+    if (!b || fread(b, 1, (size_t)len, f) != (size_t)len) { fclose(f); free(b); return 0; }
+    fclose(f);
+    b[len] = 0;
+    t->s = (const char *)b;
+    t->len = (size_t)len;
+    t->ok = 1;
+    th_ws(t);
+    if (t->i < t->len && t->s[t->i] == '{') th_object(t, "", 0);
+    else t->ok = 0;
+    free(b);
+    t->s = NULL;
+    return t->ok;
+}
+
+static void th_set(const Th *t, const char *name, uint32_t *field)
+{
+    uint32_t c;
+    if (th_color(th_get(t, name), &c, NULL)) *field = c;
+}
+
 void px_pal_make(PxPal *p, const PxSettings *st)
 {
     size_t i;
     PxAccent a = ACCENTS[0].a;
+    Th th;
+    int themed = 0, light;
+    uint32_t c, sheet_base;
+    float sheet_mix;
+    const char *acc;
     for (i = 0; i < sizeof ACCENTS / sizeof ACCENTS[0]; i++)
         if (st && !strcmp(st->accent, ACCENTS[i].name)) a = ACCENTS[i].a;
     g_accent_text = st && !strcmp(st->accent_text, "dark") ? 1 : st && !strcmp(st->accent_text, "light") ? 2 : 0;
     memset(p, 0, sizeof *p);
+    light = st && !strcmp(st->theme, "light");
+    if (st && theme_read(st->theme, &th)) {
+        themed = 1;
+        light = !strcmp(th_get(&th, "base"), "light");
+        /* the theme's own accent wins over Settings' */
+        acc = th_get(&th, "accent");
+        if (th_color(acc, &c, NULL)) {
+            a.base = c; a.light = px_mix(c, 0xffffff, 0.6f); a.dark = px_mix(c, 0, 0.62f);
+            a.band = px_mix(c, 0xffffff, 0.3f); a.low = px_mix(c, 0, 0.2f);
+        } else if (th_color(th_get(&th, "accent.base"), &c, NULL)) {
+            a.base = c;
+            a.light = px_mix(c, 0xffffff, 0.6f); a.dark = px_mix(c, 0, 0.62f);
+            a.band = px_mix(c, 0xffffff, 0.3f); a.low = px_mix(c, 0, 0.2f);
+            th_set(&th, "accent.light", &a.light); th_set(&th, "accent.dark", &a.dark);
+            th_set(&th, "accent.band", &a.band); th_set(&th, "accent.low", &a.low);
+        } else if (acc[0]) {
+            for (i = 0; i < sizeof ACCENTS / sizeof ACCENTS[0]; i++)
+                if (!strcmp(acc, ACCENTS[i].name)) a = ACCENTS[i].a;
+        }
+    } else if (st && !strncmp(st->theme, "user:", 5)) {
+        /* a theme that can't be read: the menu shows Dark (theme.cpp) */
+        light = 0;
+    }
     p->accent = a;
-    p->light = st && !strcmp(st->theme, "light");
-    if (!p->light) {
-        p->ink = 0xf1ede2; p->muted = 0xa39d8e; p->line = 0x8a8374; p->edge = 0xe8e2d3; p->dim = 0x6b6559;
+    p->light = light;
+    /* RndsUI.cpp's darkPal() and lightPal() */
+    if (!light) {
+        p->ink = 0xf1ede2; p->muted = 0xa39d8e; p->line = 0x8a8374; p->edge = 0xe8e2d3;
         p->screen_bg = 0x17161c; p->screen_frame = 0x0b0a0d; p->screen_band = 0x2e2b33;
         p->panel_band = 0x3a3540; p->panel_body = 0x17161c; p->panel_low = 0x0b0a0d;
         p->bubble_band = 0x38333b; p->bubble_body = 0x191820; p->bubble_low = 0x0f0e13;
         p->chip_band = 0x2e2b33; p->chip_body = 0x121117; p->rail_bg = 0x100f14; p->rule = 0x45403d;
         p->brand_bg = 0x262219; p->kbd_bg = 0xf1ede2; p->kbd_ink = 0x17161c;
-        p->red = 0xff3b4a; p->green = 0x56bf6b; p->warn = 0xff8a96;
+        p->red = 0xff3b4a;
         p->dither_rgb = 0xffffff; p->dither_a = 36; p->dither_b = 18;
-        p->sheet = px_mix(0x15141a, a.base, 0.34f);
+        sheet_base = 0x15141a; sheet_mix = 0.34f;
         p->pick_edge = 0xffffff;
     } else {
-        p->ink = 0x2a2620; p->muted = 0x7a7262; p->line = 0xa69d8c; p->edge = 0x3a342c; p->dim = 0xa69d8c;
+        p->ink = 0x2a2620; p->muted = 0x7a7262; p->line = 0xa69d8c; p->edge = 0x3a342c;
         p->screen_bg = 0xf3efe6; p->screen_frame = 0xd4ccbd; p->screen_band = 0xfdfcf9;
         p->panel_band = 0xffffff; p->panel_body = 0xf6f2ea; p->panel_low = 0xd8d0c0;
         p->bubble_band = 0xffffff; p->bubble_body = 0xfaf7f0; p->bubble_low = 0xddd5c6;
-        p->chip_band = 0xffffff; p->chip_body = 0xefe9dd; p->rail_bg = 0xddd5c6; p->rule = 0xc9c0ae;
-        p->brand_bg = 0xfdfcf9; p->kbd_bg = 0x3a342c; p->kbd_ink = 0xf2f6fa;
-        p->red = 0xe23b4a; p->green = 0x2f8f45; p->warn = 0xb8232f;
+        p->chip_band = 0xffffff; p->chip_body = 0xf6f2ea; p->rail_bg = 0xe6dfd0; p->rule = 0xd6cfc0;
+        p->brand_bg = 0x262219; p->kbd_bg = 0x3a342c; p->kbd_ink = 0xf2f6fa;
+        p->red = 0xe23b4a;
         p->dither_rgb = 0x3a2e14; p->dither_a = 18; p->dither_b = 9;
-        p->sheet = px_mix(0xfdfcf9, a.base, 0.22f);
+        sheet_base = 0xfdfbf6; sheet_mix = 0.3f;
         p->pick_edge = a.dark;
     }
+    if (themed) {
+        static const struct { const char *name; size_t off; } MAP[] = {
+            { "colors.ink", offsetof(PxPal, ink) }, { "colors.muted", offsetof(PxPal, muted) },
+            { "colors.line", offsetof(PxPal, line) }, { "colors.edge", offsetof(PxPal, edge) },
+            { "colors.red", offsetof(PxPal, red) }, { "colors.screenBg", offsetof(PxPal, screen_bg) },
+            { "colors.screenFrame", offsetof(PxPal, screen_frame) }, { "colors.screenBand", offsetof(PxPal, screen_band) },
+            { "colors.panelBand", offsetof(PxPal, panel_band) }, { "colors.panelBody", offsetof(PxPal, panel_body) },
+            { "colors.panelLow", offsetof(PxPal, panel_low) }, { "colors.bubbleBand", offsetof(PxPal, bubble_band) },
+            { "colors.bubbleBody", offsetof(PxPal, bubble_body) }, { "colors.bubbleLow", offsetof(PxPal, bubble_low) },
+            { "colors.chipBand", offsetof(PxPal, chip_band) }, { "colors.chipBody", offsetof(PxPal, chip_body) },
+            { "colors.railBg", offsetof(PxPal, rail_bg) }, { "colors.rule", offsetof(PxPal, rule) },
+            { "colors.brandBg", offsetof(PxPal, brand_bg) }, { "colors.kbdBg", offsetof(PxPal, kbd_bg) },
+            { "colors.kbdInk", offsetof(PxPal, kbd_ink) },
+        };
+        int al;
+        for (i = 0; i < sizeof MAP / sizeof MAP[0]; i++) th_set(&th, MAP[i].name, (uint32_t *)((char *)p + MAP[i].off));
+        th_set(&th, "colors.sheetBase", &sheet_base);
+        if (th_color(th_get(&th, "colors.ditherA"), &c, &al)) { p->dither_rgb = c; p->dither_a = al; }
+        if (th_color(th_get(&th, "colors.ditherB"), &c, &al)) p->dither_b = al;
+        if (!strcmp(th_get(&th, "background.dither"), "false")) p->dither_a = p->dither_b = 0;
+    }
+    p->dim = px_mix(p->muted, p->panel_body, 0.25f);
+    p->sheet = px_mix(sheet_base, a.base, sheet_mix);
+    /* the success green and the warning red, readable on the sheet */
+    p->green = light ? 0x2f9e4f : 0x4cc76a;
+    p->warn = p->red;
+    for (i = 0; i < 12 && contrast(p->warn, p->sheet) < 4.0f; i++) p->warn = px_mix(p->warn, light ? 0 : 0xffffff, 0.15f);
     p->pick = a.base; p->pick_band = a.band; p->pick_low = a.low;
     p->on_pick = px_ink_on(a.base); p->on_pick_sub = sub_ink_on(a.base);
+    if (themed) { th_set(&th, "colors.onPick", &p->on_pick); th_set(&th, "colors.onPickAccent", &p->on_pick_sub); }
 }
 
 /* ---- translations ------------------------------------------------------------------------------------------ */
@@ -199,7 +437,7 @@ typedef struct {
 } Glyph;
 
 typedef struct {
-    int face, ipx, used;
+    int face, ipx, used;        /* ipx: the em size in 1/8 pixels */
     float scale;
     int ascent;
     Glyph g[PX_CPS];
@@ -269,7 +507,7 @@ static Slot *slot(int face, int ipx)
     g_slot[s].used = 1;
     g_slot[s].face = face;
     g_slot[s].ipx = ipx;
-    g_slot[s].scale = stbtt_ScaleForPixelHeight(&g_font[face], (float)ipx);
+    g_slot[s].scale = stbtt_ScaleForMappingEmToPixels(&g_font[face], ipx / 8.0f);
     stbtt_GetFontVMetrics(&g_font[face], &asc, &desc, &gap);
     g_slot[s].ascent = (int)(asc * g_slot[s].scale + 0.5f);
     return &g_slot[s];
@@ -317,16 +555,48 @@ int px_u(const PxCanvas *c, float units)
     return (int)lroundf(units * c->s);
 }
 
+/* the em size in 1/8 pixels. banana-ui sets Pixelify Sans by its em (a CSS font size); on the RG DS Plus these apps
+   keep the size they were tuned at there (5/6 of it), on the RG DS (1x) the full em, never under 12 px, so the
+   small labels stay readable */
+static int em8(const PxCanvas *c, float size)
+{
+    float em = c->s < 1.3f ? size * c->s : size * c->s / 1.2f;
+    if (c->s < 1.3f && em < 12) em = 12;
+    return (int)lroundf(em * 8);
+}
+
+/* at 1x the small text is set in Medium: Regular's one-pixel strokes go grey there */
+static int face_for(const PxCanvas *c, int face, int e8)
+{
+    return c->s < 1.3f && e8 < 15 * 8 ? PX_MEDIUM : face;
+}
+
+static int track_px(const PxCanvas *c, float size, int flags)
+{
+    int t;
+    if (!(flags & PX_TRACK)) return 0;
+    t = px_u(c, size * 0.11f);
+    return t < 1 ? 1 : t;
+}
+
+static int kern(Slot *sl, int a, int b)
+{
+    if (!a || !b) return 0;
+    return (int)lroundf(stbtt_GetCodepointKernAdvance(&g_font[sl->face], a, b) * sl->scale);
+}
+
 static int text_px(const PxCanvas *c, int face, float size, const char *s, int flags, int *count)
 {
     Slot *sl;
-    int ipx = px_u(c, size), w = 0, n = 0, track = (flags & PX_TRACK) ? px_u(c, size * 0.11f) : 0;
-    if (!g_font_ok[face] || ipx < 4) { if (count) *count = 0; return 0; }
-    sl = slot(face, ipx);
+    int e8 = em8(c, size), w = 0, n = 0, track = track_px(c, size, flags), prev = 0;
+    face = face_for(c, face, e8);
+    if (!g_font_ok[face] || e8 < 32) { if (count) *count = 0; return 0; }
+    sl = slot(face, e8);
     while (*s) {
         int cp = utf8(&s);
         if (flags & PX_UPPER) cp = upper(cp);
-        w += glyph(sl, cp)->adv + (n ? track : 0);
+        w += kern(sl, prev, cp) + glyph(sl, cp)->adv + (n ? track : 0);
+        prev = cp;
         n++;
     }
     if (count) *count = n;
@@ -350,14 +620,16 @@ static void blend(PxCanvas *c, int x, int y, uint32_t rgb, int a)
          (((rgb & 255) * a + (d & 255) * (255 - a)) / 255);
 }
 
-/* y is the top of the line: the baseline is y + the face's ascent */
+/* y is the top of the line: the baseline is y + the face's ascent. Glyphs land on whole pixels with their plain
+   coverage (banana-ui: no hinting, whole-pixel origins); only the faintest fringe is dropped */
 float px_text(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags)
 {
     Slot *sl;
-    int ipx = px_u(c, size), X = px_u(c, x), Y = px_u(c, y), track, n = 0, x0;
-    if (!g_font_ok[face] || ipx < 4) return 0;
-    sl = slot(face, ipx);
-    track = (flags & PX_TRACK) ? px_u(c, size * 0.11f) : 0;
+    int e8 = em8(c, size), X = px_u(c, x), Y = px_u(c, y), track, n = 0, x0, prev = 0;
+    face = face_for(c, face, e8);
+    if (!g_font_ok[face] || e8 < 32) return 0;
+    sl = slot(face, e8);
+    track = track_px(c, size, flags);
     x0 = X;
     Y += sl->ascent;
     while (*s) {
@@ -365,19 +637,35 @@ float px_text(PxCanvas *c, int face, float size, float x, float y, const char *s
         Glyph *g;
         if (flags & PX_UPPER) cp = upper(cp);
         g = glyph(sl, cp);
+        X += kern(sl, prev, cp);
         if (n) X += track;
         if (g->bm)
             for (gy = 0; gy < g->h; gy++)
                 for (gx = 0; gx < g->w; gx++) {
                     int a = g->bm[gy * g->w + gx];
-                    /* Pixelify Sans is drawn on a pixel grid: sharpen its edges (no soft halo) */
-                    a = a < 96 ? 0 : a > 160 ? 255 : (a - 96) * 4;
+                    a = a < 40 ? 0 : a > 215 ? 255 : (a - 40) * 255 / 175;
                     blend(c, X + g->xo + gx, Y + g->yo + gy, rgb, a);
                 }
         X += g->adv;
+        prev = cp;
         n++;
     }
     return (X - x0) / c->s;
+}
+
+/* text that ends in an animated "." ".." "...": laid out as if the three were there, so nothing moves */
+float px_text_dots(PxCanvas *c, int face, float size, float x, float y, const char *s, int dots, uint32_t rgb,
+                   int flags, int align)
+{
+    char full[200], now[200];
+    float w;
+    snprintf(full, sizeof full, "%s...", s);
+    snprintf(now, sizeof now, "%s%.*s", s, dots < 0 ? 0 : dots > 3 ? 3 : dots, "...");
+    w = px_text_w(c, face, size, full, flags);
+    if (align == PX_RIGHT) x -= w;
+    else if (align == PX_CENTER) x -= w / 2;
+    px_text(c, face, size, x, y, now, rgb, flags);
+    return w;
 }
 
 float px_text_fit(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
@@ -661,22 +949,90 @@ void px_chip(PxCanvas *c, float x, float y, float w, float h, int active)
     box(c, x, y, w, h, &b);
 }
 
+/* the state badge on the top panel: a lamp and a word in capitals, green (on), grey (off), the accent (on its way)
+   or red (can't) */
+static float badge_w(const PxCanvas *c, float h, const char *text, int dots)
+{
+    char full[200];
+    snprintf(full, sizeof full, "%s%s", text, dots >= 0 ? "..." : "");
+    return h * 0.5f + h * 0.36f + h * 0.3f + px_text_w(c, PX_MEDIUM, h * 0.5f, full, PX_UPPER | PX_TRACK) + h * 0.5f;
+}
+
+float px_badge_w(const PxCanvas *c, float h, const char *text)
+{
+    return badge_w(c, h, text, -1);
+}
+
+float px_badge(PxCanvas *c, float x, float y, float h, const char *text, int kind)
+{
+    return px_badge_dots(c, x, y, h, text, -1, kind);
+}
+
+float px_badge_dots(PxCanvas *c, float x, float y, float h, const char *text, int dots, int kind)
+{
+    Box b;
+    float w = badge_w(c, h, text, dots), size = h * 0.5f, lamp = h * 0.36f, lx = x + h * 0.5f;
+    uint32_t fill, band, low, edge, lamp_on, ink;
+    switch (kind) {
+    case PX_BADGE_ON:
+        fill = px.green; band = px_mix(px.green, 0xffffff, 0.3f); low = px_mix(px.green, 0, 0.3f);
+        lamp_on = px_mix(px.green, 0xffffff, 0.75f);
+        break;
+    case PX_BADGE_BUSY:
+        fill = px.accent.base; band = px.accent.band; low = px.accent.low; lamp_on = px.accent.light;
+        break;
+    case PX_BADGE_WARN:
+        fill = px.red; band = px_mix(px.red, 0xffffff, 0.3f); low = px_mix(px.red, 0, 0.3f);
+        lamp_on = px_mix(px.red, 0xffffff, 0.7f);
+        break;
+    default:
+        fill = px.light ? 0xb9b2a5 : 0x56525c; band = px_mix(fill, 0xffffff, 0.22f); low = px_mix(fill, 0, 0.28f);
+        lamp_on = px.light ? 0x8a8478 : 0x2a282e;
+        break;
+    }
+    edge = px.light ? px_mix(fill, 0, 0.55f) : px_mix(fill, 0xffffff, 0.55f);
+    ink = px_ink_on(fill);
+    memset(&b, 0, sizeof b);
+    b.r = 10; b.border_w = 3; b.fill = fill; b.border = edge;
+    b.band_top = band; b.band_top_h = (int)(h * 0.2f);
+    b.inset_bot = low; b.inset_bot_h = 4; b.inset_bot_a = 255;
+    b.shadow = 0x000000; b.sdx = 3; b.sdy = 3; b.shadow_a = px.light ? 45 : 200;
+    box(c, x, y, w, h, &b);
+    /* the lamp: a lit square with a dark rim (off: unlit) */
+    px_rect(c, lx - 2, y + (h - lamp) / 2 - 2, lamp + 4, lamp + 4, px_mix(low, 0, 0.35f));
+    px_rect(c, lx, y + (h - lamp) / 2, lamp, lamp, lamp_on);
+    if (kind != PX_BADGE_OFF) px_rect(c, lx + 2, y + (h - lamp) / 2 + 2, lamp * 0.35f, lamp * 0.35f, 0xffffff);
+    if (dots >= 0)
+        px_text_dots(c, PX_MEDIUM, size, lx + lamp + h * 0.3f, y + (h - size * 1.2f) / 2 + 1, text, dots, ink,
+                     PX_UPPER | PX_TRACK, PX_LEFT);
+    else px_text(c, PX_MEDIUM, size, lx + lamp + h * 0.3f, y + (h - size * 1.2f) / 2 + 1, text, ink, PX_UPPER | PX_TRACK);
+    return w;
+}
+
+static float g_face_size = 19;    /* the face buttons' label size (px_faces makes it smaller to fit a row) */
+
+/* a one-letter key in 16, a word (SELECT, START) in 12 */
+static float cap_size(const char *key)
+{
+    return strlen(key) > 1 ? 12 : 16;
+}
+
 float px_keycap_w(const PxCanvas *c, const char *key)
 {
-    return 12 + px_text_w(c, PX_MEDIUM, 16, key, PX_UPPER);
+    return 12 + px_text_w(c, PX_MEDIUM, cap_size(key), key, PX_UPPER);
 }
 
 float px_keycap(PxCanvas *c, float x, float y, const char *key)
 {
-    float w = px_keycap_w(c, key);
+    float w = px_keycap_w(c, key), sz = cap_size(key);
     px_round(c, x, y, w, 23, 4, px.kbd_bg, 255);
-    px_text(c, PX_MEDIUM, 16, x + 6, y + 2, key, px.kbd_ink, PX_UPPER);
+    px_text(c, PX_MEDIUM, sz, x + 6, y + 2 + (16 - sz) * 0.55f, key, px.kbd_ink, PX_UPPER);
     return w;
 }
 
 float px_face_w(const PxCanvas *c, const char *key, const char *label)
 {
-    return 15 + px_keycap_w(c, key) + 10 + px_text_w(c, PX_MEDIUM, 19, label, 0) + 18;
+    return 13 + px_keycap_w(c, key) + 9 + px_text_w(c, PX_MEDIUM, g_face_size, label, 0) + 15;
 }
 
 void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit)
@@ -691,13 +1047,36 @@ void px_face(PxCanvas *c, float x, float y, int align, const char *key, const ch
     b.inset_bot = px.panel_low; b.inset_bot_h = 4; b.inset_bot_a = 255;
     b.shadow = 0x000000; b.sdx = 3; b.sdy = 3; b.shadow_a = px.light ? 40 : 217;
     box(c, x, y, w, 40, &b);
-    kx = x + 15;
-    kx += px_keycap(c, kx, y + 9, key) + 10;
-    px_text(c, PX_MEDIUM, 19, kx, y + 8, label, dis ? px.dim : px.ink, 0);
+    kx = x + 13;
+    kx += px_keycap(c, kx, y + 9, key) + 9;
+    px_text(c, PX_MEDIUM, g_face_size, kx, y + 8 + (19 - g_face_size) * 0.5f, label, dis ? px.dim : px.ink, 0);
     if (hit) {
         hit->x = px_u(c, x); hit->y = px_u(c, y);
         hit->w = px_u(c, x + w) - hit->x; hit->h = px_u(c, y + 40) - hit->y;
     }
+}
+
+void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hits)
+{
+    float total, x;
+    int i;
+    for (g_face_size = 19; g_face_size > 14; g_face_size -= 1) {
+        total = 0;
+        for (i = 0; i < n; i++) total += px_face_w(c, f[i].key, f[i].label) + (i ? 8 : 0);
+        if (n > left && left > 0) total += 16;   /* the gap between the two groups */
+        if (total <= 604) break;
+    }
+    x = 18;
+    for (i = 0; i < left && i < n; i++) {
+        px_face(c, x, y, PX_LEFT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL);
+        x += px_face_w(c, f[i].key, f[i].label) + 8;
+    }
+    x = 622;
+    for (i = n - 1; i >= left; i--) {
+        px_face(c, x, y, PX_RIGHT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL);
+        x -= px_face_w(c, f[i].key, f[i].label) + 8;
+    }
+    g_face_size = 19;
 }
 
 void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total)

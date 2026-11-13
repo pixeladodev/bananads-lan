@@ -55,6 +55,8 @@ cp "$ROOT/app/common.sh" "$ROOT/app/apply.sh" "$ROOT/app/revert.sh" "$ROOT/app/s
     "$ROOT/app/run-nds-lan" "$ROOT/app/tile.sh" "$ROOT/app/uninstall.sh" "$ROOT/app/fix-nest.sh" \
     "$ROOT/app/app.json" "$ROOT/app/manifest" "$APP/"
 cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/BananaDS LAN.sh"
+# the Apps shelf's picture (tile.sh puts it in store/tiles/media/box)
+cp "$ROOT/packaging/store/tile.png" "$APP/tile.png"
 cp "$ROOT/INSTALL.txt" "$STAGE/INSTALL.txt"
 chmod 755 "$APP/bin/bananads" "$APP/ui/bananads-lan" "$APP/apply.sh" "$APP/revert.sh" \
     "$APP/status.sh" "$APP/run-nds-lan" "$APP/tile.sh" "$APP/uninstall.sh" "$APP/fix-nest.sh" \

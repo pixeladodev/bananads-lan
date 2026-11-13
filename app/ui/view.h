@@ -4,10 +4,10 @@
 
 #include "pixel.h"
 
-enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK };
-enum { ROW_MP, ROW_UPDATES, ROW_UNINSTALL, ROW_COUNT };
+enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT };
+enum { ROW_MP, ROW_UPDATES, ROW_COUNT };
 /* what a touch on the bottom panel does */
-enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y };
+enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_SELECT };
 
 typedef struct {
     int supported, enabled, mounted;

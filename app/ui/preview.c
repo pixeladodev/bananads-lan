@@ -47,7 +47,8 @@ static int shot(const char *dir, const char *name, int w, int h, const char *the
     }
     view_top(&top, m);
     view_bottom(&bot, m);
-    snprintf(path, sizeof path, "%s/bananads-lan-%s-%dx%d-%s%s%s.png", dir, name, w, h, theme,
+    snprintf(path, sizeof path, "%s/bananads-lan-%s-%dx%d-%s%s%s.png", dir, name, w, h,
+             strncmp(theme, "user:", 5) ? theme : theme + 5,
              strcmp(lang, "en") ? "-" : "", strcmp(lang, "en") ? lang : "");
     ok = px_png_write(path, buf, w, h * 2 + gap);
     if (ok) printf("%s\n", path);
@@ -82,8 +83,21 @@ int main(int argc, char **argv)
     ok &= shot(dir, "unsupported", 640, 480, "dark", "blue", "en", &m);
     m = base();
     m.view = V_UNINSTALL;
-    m.cursor = ROW_UNINSTALL;
     ok &= shot(dir, "uninstall", 1024, 768, "dark", "yellow", "es", &m);
+    m = base();
+    m.view = V_ABOUT;
+    ok &= shot(dir, "about", 640, 480, "dark", "yellow", "es", &m);
+    ok &= shot(dir, "about", 1024, 768, "light", "yellow", "en", &m);
+    /* BananaOS's own themes (banana/themes, one JSON file each): light ones and dark ones */
+    m = base();
+    snprintf(m.model, sizeof m.model, "rgds");
+    ok &= shot(dir, "on", 640, 480, "user:sakura", "yellow", "es", &m);
+    ok &= shot(dir, "on", 640, 480, "user:comic-panel", "yellow", "en", &m);
+    ok &= shot(dir, "on", 640, 480, "user:swiss-poster", "yellow", "en", &m);
+    ok &= shot(dir, "on", 640, 480, "user:paper-notebook", "yellow", "es", &m);
+    ok &= shot(dir, "on", 640, 480, "user:ocean", "yellow", "en", &m);
+    m.enabled = 0;
+    ok &= shot(dir, "off", 640, 480, "user:sunset", "yellow", "es", &m);
     m = base();
     m.view = V_NEST;
     ok &= shot(dir, "nest", 640, 480, "light", "green", "en", &m);

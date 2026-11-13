@@ -39,7 +39,7 @@ typedef struct {
 
 /* what /data/banana/settings.conf says (theme, accent, accent_text, language, clock) */
 typedef struct {
-    char theme[32], accent[16], accent_text[8], language[16], clock[8];
+    char theme[96], accent[16], accent_text[8], language[16], clock[8];
 } PxSettings;
 
 enum { PX_REGULAR = 0, PX_MEDIUM = 1 };
@@ -53,7 +53,8 @@ typedef struct { int x, y, w, h; } PxRect;   /* in pixels, for touch */
 /* settings: path NULL is /data/banana/settings.conf (PIXEL_UI_SETTINGS overrides it); missing keys are the
    menu's defaults (dark, yellow, auto, English, 24h) */
 void px_settings_read(const char *path, PxSettings *st);
-/* the palette for a theme ("light", else dark: a user theme draws on dark here) and an accent name */
+/* the palette: settings.conf's theme (dark, light, or user:<name>: banana/themes/<name>.json, its base, accent and
+   colours as banana-ui reads them) and accent */
 void px_pal_make(PxPal *p, const PxSettings *st);
 extern PxPal px;                 /* the palette in use */
 
@@ -83,6 +84,9 @@ void px_triangle(PxCanvas *c, float cx, float cy, float size, int dir, uint32_t 
 /* text: size in units; returns the width in units */
 float px_text(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags);
 float px_text_w(const PxCanvas *c, int face, float size, const char *s, int flags);
+/* text ending in an animated 0-3 dots, laid out as if all three were there (it doesn't move); align as px_text_fit */
+float px_text_dots(PxCanvas *c, int face, float size, float x, float y, const char *s, int dots, uint32_t rgb,
+                   int flags, int align);
 /* text cut with "..." to max_w units */
 float px_text_fit(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
                   float max_w, int align);
@@ -97,6 +101,12 @@ void px_sheet(PxCanvas *c, float x, float y, float w, float h);  /* the tinted h
 void px_card(PxCanvas *c, float x, float y, float w, float h, int sel, int dis);
 void px_bubble(PxCanvas *c, float x, float y, float w, float h, int pointer);
 void px_chip(PxCanvas *c, float x, float y, float w, float h, int active);
+/* the state badge (top panel): h units high; kind PX_BADGE_ON green, _OFF grey, _BUSY the accent, _WARN red */
+enum { PX_BADGE_OFF = 0, PX_BADGE_ON = 1, PX_BADGE_BUSY = 2, PX_BADGE_WARN = 3 };
+float px_badge(PxCanvas *c, float x, float y, float h, const char *text, int kind);
+float px_badge_w(const PxCanvas *c, float h, const char *text);
+/* the same with an animated "..." after the word (0-3 dots), its width kept for all three */
+float px_badge_dots(PxCanvas *c, float x, float y, float h, const char *text, int dots, int kind);
 /* a key cap ("A", "B", "START"); returns its width */
 float px_keycap(PxCanvas *c, float x, float y, const char *key);
 float px_keycap_w(const PxCanvas *c, const char *key);
@@ -104,6 +114,10 @@ float px_keycap_w(const PxCanvas *c, const char *key);
    Its area in pixels goes to *hit (may be NULL) */
 void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit);
 float px_face_w(const PxCanvas *c, const char *key, const char *label);
+/* the face row along the bottom (y): the first `left` from the left edge, the rest against the right one, their
+   labels made smaller (19 down to 15) until all of them fit; hits[i] (may be NULL) gets each one's area */
+typedef struct { const char *key, *label; int dis; } PxFace;
+void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hits);
 /* the scroll rail on the right: first shown, shown, total */
 void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total);
 /* the status row (y 18-46): the app's brand plate on the left, battery and clock on the right */

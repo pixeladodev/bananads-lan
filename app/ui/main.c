@@ -347,7 +347,7 @@ static void draw(const Model *m)
     present();
 }
 
-enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_QUIT, ACT_ROW };
+enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_QUIT, ACT_ROW, ACT_ABOUT };
 
 /* Nintendo layout: A is the east button, B the south one, Y the west one */
 static int key_action(int code, int value)
@@ -362,6 +362,7 @@ static int key_action(int code, int value)
     case BTN_WEST: return ACT_Y;
     case BTN_SOUTH: case KEY_BACKSPACE: case KEY_ESC: return ACT_BACK;
     case BTN_START: return ACT_QUIT;
+    case BTN_SELECT: return ACT_ABOUT;
     default: return ACT_NONE;
     }
 }
@@ -403,6 +404,10 @@ static int handle(Model *m, int act, int arg)
         return 0;
     }
     if (m->view == V_NEST_OK) return act == ACT_OK || act == ACT_BACK;
+    if (m->view == V_ABOUT) {
+        if (act == ACT_BACK || act == ACT_ABOUT || act == ACT_OK) m->view = V_MAIN;
+        return 0;
+    }
     if (m->view == V_UNINSTALL) {
         if (act == ACT_OK) {
             if (run_sh("uninstall.sh", m->err, (int)sizeof m->err)) return 1;
@@ -416,6 +421,7 @@ static int handle(Model *m, int act, int arg)
     case ACT_UP: if (m->cursor > 0) m->cursor--; break;
     case ACT_DOWN: if (m->cursor < ROW_COUNT - 1) m->cursor++; break;
     case ACT_Y: m->err[0] = 0; m->view = V_UNINSTALL; break;
+    case ACT_ABOUT: m->view = V_ABOUT; break;
     case ACT_ROW:
         /* a tap: the row under the finger, and its action when it already had the cursor */
         if (arg != m->cursor) { m->cursor = arg; break; }
@@ -426,9 +432,6 @@ static int handle(Model *m, int act, int arg)
         if (m->cursor == ROW_MP) {
             run_sh(m->enabled ? "revert.sh" : "apply.sh", m->err, (int)sizeof m->err);
             load_state(m);
-        } else if (m->cursor == ROW_UNINSTALL && (act == ACT_OK || act == ACT_ROW)) {
-            m->err[0] = 0;
-            m->view = V_UNINSTALL;
         }
         break;
     default: break;
@@ -510,6 +513,7 @@ static int touch_action(int hx, int hy, int *arg)
         case HIT_BACK: act = ACT_BACK; break;
         case HIT_OK: act = ACT_OK; break;
         case HIT_Y: act = ACT_Y; break;
+        case HIT_SELECT: act = ACT_ABOUT; break;
         default: break;
         }
     }
