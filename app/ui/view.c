@@ -77,6 +77,12 @@ const PxTr view_tr[] = {
     { "Settings", "Ajustes" },
     { "List", "Lista" },
     { "Grid", "Grilla" },
+    { "Order: A-Z", "Orden: A-Z" },
+    { "Order: Favorites", "Orden: Favoritos" },
+    { "Order: Recent", "Orden: Recientes" },
+    { "Add favorite", "Añadir a favoritos" },
+    { "Remove favorite", "Quitar de favoritos" },
+    { "Favorite", "Favorito" },
     { "Play time", "Tiempo de juego" },
     { "Last played", "Última vez" },
     { "Not played yet", "Sin jugar todavía" },
@@ -316,38 +322,74 @@ static void games_top(PxCanvas *c, const Model *m)
                      px.muted, 556, 2, 22);
 }
 
-/* the library's keys: B leaves, START the settings (local multiplayer, updates; SELECT there is About, as it is
-   here too), X the other layout, A plays */
-static void library_faces(PxCanvas *c, const Model *m)
+static const char *sort_label(int sort)
 {
-    PxFace f[4];
-    PxRect hr[4];
-    f[0].key = "B"; f[0].label = T("Exit"); f[0].dis = 0;
-    f[1].key = "START"; f[1].label = T("Settings"); f[1].dis = 0;
-    f[2].key = "X"; f[2].label = m->grid ? T("List") : T("Grid"); f[2].dis = m->ngames <= 0;
-    f[3].key = "A"; f[3].label = T("Play"); f[3].dis = m->ngames <= 0 || !m->emu_ok;
-    px_faces(c, 422, 4, 2, f, hr);
-    add_face_hit(hr[0], HIT_BACK);
-    add_face_hit(hr[1], HIT_START);
-    add_face_hit(hr[2], HIT_X);
-    add_face_hit(hr[3], HIT_OK);
+    if (sort == SORT_FAV) return T("Order: Favorites");
+    if (sort == SORT_RECENT) return T("Order: Recent");
+    return T("Order: A-Z");
+}
+
+/* the library's keys: arrows on the ends, L2 sort and R2 layout inward, B and START on the sides, A plays, Y favorites */
+static void library_legend(PxCanvas *c, const Model *m)
+{
+    PxRect r;
+    const char *sort = sort_label(m->sort);
+    const char *view = m->grid ? T("List") : T("Grid");
+  float y = 424, cy = y + 14, ax, mid = 320;
+    uint32_t ink = px.ink, dim = px.dim;
+    px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r);
+    add_face_hit(r, HIT_BACK);
+    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r);
+    add_face_hit(r, HIT_OK);
+    {
+        float aw = px_face_w(c, "A", T("Play"));
+        px_face(c, 622 - aw - 12, y, PX_RIGHT, "START", T("Settings"), 0, &r);
+        add_face_hit(r, HIT_START);
+    }
+    if (m->ngames > 0) {
+        int vert = !m->grid;
+        ax = 58;
+        px_triangle(c, ax, cy, 10, vert ? -2 : -1, ink);
+        ax = 580;
+        px_triangle(c, ax, cy, 10, vert ? 2 : 1, ink);
+        px_keycap(c, 96, y + 8, "L2");
+        px_text_fit(c, PX_MEDIUM, 15, 132, y + 12, sort, ink, 0, 168, PX_LEFT);
+        add_hit(c, 92, y + 4, 210, 34, HIT_SORT, 0);
+        px_text_fit(c, PX_MEDIUM, 15, 428, y + 12, view, ink, 0, 90, PX_RIGHT);
+        px_keycap(c, 526, y + 8, "R2");
+        add_hit(c, 420, y + 4, 130, 34, HIT_VIEW, 0);
+        px_keycap(c, mid - 52, y + 8, "Y");
+        px_text_fit(c, PX_MEDIUM, 15, mid + 2, y + 12,
+                    m->gfav ? T("Remove favorite") : T("Add favorite"), m->gfav ? px.accent.base : ink, 0, 140,
+                    PX_LEFT);
+        add_hit(c, mid - 56, y + 4, 200, 34, HIT_Y, 0);
+    } else {
+        px_keycap(c, mid - 24, y + 8, "Y");
+        px_text_fit(c, PX_MEDIUM, 15, mid + 26, y + 12, T("Favorite"), dim, 0, 120, PX_LEFT);
+    }
+    (void)dim;
 }
 
 /* bottom: the library, as a grid scrolled sideways or as a list */
 static void games_bottom(PxCanvas *c, const Model *m)
 {
     char count[24], name[GAME_PATH];
+    PxRect rail;
     int i;
     g_nhits = 0;
     px_screen(c);
-    px_bubble(c, 18, 14, 604, 54, 0);
-    px_text_fit(c, PX_MEDIUM, 26, 38, 25, T("Games"), px.ink, 0, 400, PX_LEFT);
-    snprintf(count, sizeof count, "%02d/%02d", m->ngames ? m->gsel + 1 : 0, m->ngames);
-    px_text(c, PX_MEDIUM, 19, 602 - px_text_w(c, PX_MEDIUM, 19, count, 0), 30, count, px.muted, 0);
+  snprintf(count, sizeof count, "%02d / %02d", m->ngames ? m->gsel + 1 : 0, m->ngames);
+    px_hrail(c, 18, 18, 604, m->gsel, m->ngames > 0 ? m->ngames : 1, count, &rail);
+    if (m->ngames > 0) {
+        g_hits[g_nhits].r = rail;
+        g_hits[g_nhits].id = HIT_RAIL;
+        g_hits[g_nhits].arg = 0;
+        g_nhits++;
+    }
     if (m->ngames <= 0) {
-        px_card(c, 18, 84, 604, 120, 0, 0);
-        px_text_wrap(c, PX_MEDIUM, 22, 40, 104, T("No DS games in roms/nds."), px.ink, 560, 1, 28);
-        px_text_wrap(c, PX_REGULAR, 17, 40, 140, T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
+        px_card(c, 18, 56, 604, 120, 0, 0);
+        px_text_wrap(c, PX_MEDIUM, 22, 40, 76, T("No DS games in roms/nds."), px.ink, 560, 1, 28);
+        px_text_wrap(c, PX_REGULAR, 17, 40, 112, T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
                      px.muted, 560, 2, 23);
     } else if (m->grid) {
         int cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
@@ -357,32 +399,25 @@ static void games_bottom(PxCanvas *c, const Model *m)
             if (col >= cols || g >= m->ngames) continue;
             sel = g == m->gsel;
             x = 18 + (i / GRID_ROWS) * (TILE_W + TILE_GAP);
-            y = 82 + rw * (TILE_H + 8);
+            y = 40 + rw * (TILE_H + TILE_GAP);
             view_game_name(m->games[g], name, (int)sizeof name);
             px_card(c, x, y, TILE_W, TILE_H, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H, name, sel);
-            px_text_fit(c, PX_MEDIUM, 16, x + 10, y + TILE_H - 32, name, sel ? px.on_pick : px.ink, 0, TILE_W - 20, PX_LEFT);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
-        }
-        /* where the view is along the row of columns */
-        if (cols > GRID_COLS) {
-            float tw = 604.0f * GRID_COLS / cols, tx = 18 + (604.0f - tw) * m->gleft / (cols - GRID_COLS);
-            px_rect(c, 18, 409, 604, 4, px.rail_bg);
-            px_rect(c, tx, 409, tw, 4, px.accent.base);
         }
     } else {
         for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
             int g = m->gtop + i, sel = g == m->gsel;
-            float y = 84 + i * 66;
+            float y = 42 + i * 66;
             view_game_name(m->games[g], name, (int)sizeof name);
             px_card(c, 18, y, 588, 54, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name, sel);
             px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
             add_hit(c, 18, y, 588, 54, HIT_ROW, g);
         }
-        if (m->ngames > GAME_ROWS) px_rail(c, 615, 84, GAME_ROWS * 66 - 12, m->gtop, GAME_ROWS, m->ngames);
+        if (m->ngames > GAME_ROWS) px_rail(c, 615, 42, GAME_ROWS * 66 - 8, m->gtop, GAME_ROWS, m->ngames);
     }
-    library_faces(c, m);
+    library_legend(c, m);
 }
 
 static void row(PxCanvas *c, const Model *m, int i, float y)
@@ -390,12 +425,12 @@ static void row(PxCanvas *c, const Model *m, int i, float y)
     int sel = m->cursor == i && m->view == V_MAIN, dis = !view_row_enabled(m, i);
     uint32_t ink = sel && !dis ? px.on_pick : dis ? px.dim : px.ink;
     uint32_t sub = sel && !dis ? px.on_pick_sub : dis ? px.dim : px.muted;
-    const char *title = i == ROW_MP ? T("Local multiplayer") : T("Updates");
+    const char *title = i == ROW_ABOUT ? T("About") : T("Updates");
     px_card(c, 18, y, 588, 54, sel, dis);
     px_text_fit(c, PX_MEDIUM, 20, 38, y + 14, title, ink, 0, 330, PX_LEFT);
-    if (i == ROW_MP)
-        px_value_arrows(c, 584, y + 14, 20, m->enabled ? T("On") : T("Off"), sel ? ink : px.ink, 1, 1);
-    else if (i == ROW_UPDATES) {
+    if (i == ROW_ABOUT) {
+        /* opens with A; nothing on the right */
+    } else if (i == ROW_UPDATES) {
         char buf[64];
         int d;
         uint32_t v = upd_lit(&m->upd) || upd_running(&m->upd) ? (sel ? px.on_pick : px.ink)
@@ -422,9 +457,8 @@ static void help(PxCanvas *c, const Model *m)
 {
     char buf[320];
     const char *s;
-    if (m->cursor == ROW_MP)
-        s = m->enabled ? T("Games you open here look for other consoles on your Wi-Fi as they start. A game's menu can change it too.")
-                       : T("Games you open here start with local multiplayer off. Turn it on in the game's menu when you need it.");
+    if (m->cursor == ROW_ABOUT)
+        s = T("Local wireless multiplayer for DS games on BananaOS: two consoles on the same Wi-Fi play together, as on a real DS.");
     else {
         upd_help(&m->upd, "BananaDS LAN", buf, sizeof buf);
         s = buf;
@@ -499,15 +533,13 @@ void view_bottom(PxCanvas *c, const Model *m)
         PxRect hr[4];
         int inst = upd_installing(&m->upd);
         f[0].key = "B"; f[0].label = T("Back"); f[0].dis = 0;
-        f[1].key = "SELECT"; f[1].label = T("About"); f[1].dis = 0;
-        f[2].key = "Y"; f[2].label = T("Uninstall"); f[2].dis = inst;
-        f[3].key = "A"; f[3].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : T("Change");
-        f[3].dis = inst || (m->cursor == ROW_UPDATES && upd_running(&m->upd));
-        px_faces(c, 422, 4, 2, f, hr);
+        f[1].key = "Y"; f[1].label = T("Uninstall"); f[1].dis = inst;
+        f[2].key = "A"; f[2].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : T("Open");
+        f[2].dis = inst || (m->cursor == ROW_UPDATES && upd_running(&m->upd));
+        px_faces(c, 422, 3, 1, f, hr);
         add_face_hit(hr[0], HIT_BACK);
-        add_face_hit(hr[1], HIT_SELECT);
-        add_face_hit(hr[2], HIT_Y);
-        add_face_hit(hr[3], HIT_OK);
+        add_face_hit(hr[1], HIT_Y);
+        add_face_hit(hr[2], HIT_OK);
         return;
     }
     if (m->view == V_ABOUT) {

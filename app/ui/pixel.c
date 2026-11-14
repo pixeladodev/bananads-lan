@@ -1153,6 +1153,35 @@ void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int t
     px_rect(c, x + 1, ty + 2, 3, 4, px.accent.light);
 }
 
+void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const char *count, PxRect *hit)
+{
+    float tw, tx, cw = 0, track_w = w;
+    if (count && count[0]) {
+        cw = px_text_w(c, PX_MEDIUM, 19, count, 0) + 14;
+        px_text(c, PX_MEDIUM, 19, x + w - cw + 4, y - 2, count, px.muted, 0);
+        track_w = w - cw;
+    }
+    px_round(c, x, y + 1, track_w, 10, 2, px.rail_bg, 255);
+    if (hit) {
+        hit->x = px_u(c, x);
+        hit->y = px_u(c, y - 6);
+        hit->w = px_u(c, x + track_w) - hit->x;
+        hit->h = px_u(c, y + 18) - hit->y;
+    }
+    if (total <= 1) {
+        tw = track_w < 48 ? track_w : 48;
+        tx = x;
+    } else {
+        tw = track_w * 12.0f / (float)total;
+        if (tw < 28) tw = 28;
+        if (tw > track_w) tw = track_w;
+        tx = x + (track_w - tw) * (float)pos / (float)(total - 1);
+    }
+    px_round(c, tx - 1, y, tw + 2, 12, 2, px.edge, 255);
+    px_round(c, tx, y + 1, tw, 10, 2, px.accent.base, 255);
+    px_rect(c, tx + 2, y + 2, tw * 0.35f, 3, px.accent.light);
+}
+
 void px_label(PxCanvas *c, float x, float y, const char *s, uint32_t rgb)
 {
     px_text(c, PX_REGULAR, 13, x, y, s, rgb, PX_UPPER | PX_TRACK);

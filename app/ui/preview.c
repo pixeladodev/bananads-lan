@@ -44,9 +44,7 @@ static void pictures(Model *m, int h)
     for (i = 0; i < m->ngames && i < 64; i++) {
         char box[GAME_PATH + 64];
         int ok = 0;
-        if (px_find_box(m->games[i], box, (int)sizeof box))
-            ok = px_image_load(box, (int)((m->grid ? TILE_IMG_W : LIST_IMG) * s), (int)((m->grid ? TILE_IMG_H : LIST_IMG) * s), &thumbs[i]);
-        if (!ok) ok = px_nds_icon(m->games[i], &thumbs[i]);
+        ok = px_nds_icon(m->games[i], &thumbs[i]);
         st[i] = ok ? 1 : -1;
     }
     m->art_game = -1;

@@ -44,6 +44,7 @@ static uint32_t *g_buf[2];
 
 static char g_app[512];
 static PxRepeat g_rep;            /* the direction held down */
+static int g_rail_drag;           /* the finger is on the library's horizontal rail */
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 /* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
 #define PLAY_EXIT 76
@@ -55,6 +56,7 @@ static int g_exit;                /* UPD_RESTART after an update: tile.sh opens 
 #define UI_CONF DATA_DIR "/ui.conf"
 #define APP_STATS DATA_DIR "/playstats.tsv"
 #define MENU_STATS "/data/banana/playstats.tsv"
+#define FAVORITES_FILE "/data/banana/favorites.txt"
 
 static void planes_upright(void)
 {
@@ -347,7 +349,8 @@ static void draw(const Model *m)
     present();
 }
 
-enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_X, ACT_MENU, ACT_ROW, ACT_ABOUT };
+enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_MENU, ACT_ROW, ACT_ABOUT, ACT_SORT,
+       ACT_VIEW, ACT_FAV, ACT_RAIL };
 
 /* Nintendo layout: A is the east button, B the south one, Y the west one */
 static int is_vertical(int code)
@@ -390,11 +393,11 @@ static int key_action(int code, int value)
     case KEY_LEFT: case BTN_DPAD_LEFT: return ACT_LEFT;
     case KEY_RIGHT: case BTN_DPAD_RIGHT: return ACT_RIGHT;
     case BTN_EAST: case KEY_ENTER: return ACT_OK;
-    case BTN_WEST: return ACT_Y;
-    case BTN_NORTH: case KEY_X: return ACT_X;
+    case BTN_WEST: return ACT_FAV;
+    case BTN_TL2: return ACT_SORT;
+    case BTN_TR2: return ACT_VIEW;
     case BTN_SOUTH: case KEY_BACKSPACE: case KEY_ESC: return ACT_BACK;
     case BTN_START: return ACT_MENU;
-    case BTN_SELECT: return ACT_ABOUT;
     default: return ACT_NONE;
     }
 }
@@ -448,6 +451,158 @@ static int game_cmp(const void *a, const void *b)
     return strcasecmp(base_of((const char *)a), base_of((const char *)b));
 }
 
+static void game_fav_key(const char *rom, char *dst, int n)
+{
+    snprintf(dst, (size_t)n, "nds/%s", base_of(rom));
+}
+
+typedef struct {
+    int sort, ngames;
+    char fav[MAX_GAMES][GAME_PATH + 8];
+    int nfav;
+    long recent[MAX_GAMES];
+    const char (*paths)[GAME_PATH];
+} SortCtx;
+
+static SortCtx g_sort_ctx;
+
+static int fav_rank(const SortCtx *sc, const char *rom)
+{
+    char key[GAME_PATH + 8];
+    int i;
+    game_fav_key(rom, key, (int)sizeof key);
+    for (i = 0; i < sc->nfav; i++) if (!strcmp(sc->fav[i], key)) return i;
+    return 99999;
+}
+
+static long game_recent_idx(const SortCtx *sc, const char *rom)
+{
+    int i;
+    for (i = 0; i < sc->ngames; i++) if (!strcmp(sc->paths[i], rom)) return sc->recent[i];
+    return 0;
+}
+
+static int sort_cmp(const void *a, const void *b)
+{
+    const char *ga = *(const char *const *)a;
+    const char *gb = *(const char *const *)b;
+    if (g_sort_ctx.sort == SORT_FAV) {
+        int fa = fav_rank(&g_sort_ctx, ga), fb = fav_rank(&g_sort_ctx, gb);
+        if (fa != fb) return fa - fb;
+    } else if (g_sort_ctx.sort == SORT_RECENT) {
+        long ta = game_recent_idx(&g_sort_ctx, ga), tb = game_recent_idx(&g_sort_ctx, gb);
+        if (ta != tb) return tb > ta ? 1 : -1;
+    }
+    return game_cmp(ga, gb);
+}
+
+static void load_fav_list(SortCtx *sc)
+{
+    char line[GAME_PATH + 16];
+    FILE *f;
+    sc->nfav = 0;
+    f = fopen(FAVORITES_FILE, "r");
+    if (!f) return;
+    while (fgets(line, sizeof line, f) && sc->nfav < MAX_GAMES) {
+        line[strcspn(line, "\r\n")] = 0;
+        if (!line[0]) continue;
+        copy_str(sc->fav[sc->nfav++], (int)sizeof sc->fav[0], line);
+    }
+    fclose(f);
+}
+
+static void resort_games(Model *m)
+{
+    char last[GAME_PATH];
+    int sel = m->gsel, i;
+    char key[GAME_PATH + 8];
+    const char *ptrs[MAX_GAMES];
+    memset(&g_sort_ctx, 0, sizeof g_sort_ctx);
+    g_sort_ctx.sort = m->sort;
+    g_sort_ctx.ngames = m->ngames;
+    g_sort_ctx.paths = m->games;
+    load_fav_list(&g_sort_ctx);
+    if (m->sort == SORT_RECENT || m->sort == SORT_FAV) {
+        for (i = 0; i < m->ngames; i++) {
+            int p = 0;
+            long sec = 0;
+            time_t lt = 0;
+            game_fav_key(m->games[i], key, (int)sizeof key);
+            stats_add(MENU_STATS, key, &p, &sec, &lt);
+            stats_add(APP_STATS, key, &p, &sec, &lt);
+            g_sort_ctx.recent[i] = lt;
+        }
+    }
+    if (m->sort == SORT_AZ) qsort(m->games, (size_t)m->ngames, GAME_PATH, game_cmp);
+    else {
+        for (i = 0; i < m->ngames; i++) ptrs[i] = m->games[i];
+        qsort(ptrs, (size_t)m->ngames, sizeof ptrs[0], sort_cmp);
+        for (i = 0; i < m->ngames; i++) memcpy(m->games[i], ptrs[i], GAME_PATH);
+    }
+    if (sel < m->ngames) copy_str(last, (int)sizeof last, m->games[sel]);
+    else last[0] = 0;
+    if (last[0]) {
+        int i;
+        for (i = 0; i < m->ngames; i++)
+            if (!strcmp(m->games[i], last)) { sel = i; break; }
+    }
+    if (sel >= m->ngames) sel = m->ngames > 0 ? m->ngames - 1 : 0;
+    game_pick(m, sel);
+}
+
+static int game_is_favorite(const char *rom)
+{
+    char line[GAME_PATH + 16], key[GAME_PATH + 8];
+    FILE *f;
+    game_fav_key(rom, key, (int)sizeof key);
+    f = fopen(FAVORITES_FILE, "r");
+    if (!f) return 0;
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        if (!strcmp(line, key)) { fclose(f); return 1; }
+    }
+    fclose(f);
+    return 0;
+}
+
+static void save_favorites(char lines[][GAME_PATH + 8], int n)
+{
+    FILE *f;
+    int i;
+    char path[] = FAVORITES_FILE ".new";
+    f = fopen(path, "w");
+    if (!f) return;
+    for (i = 0; i < n; i++) fprintf(f, "%s\n", lines[i]);
+    if (fclose(f) == 0) rename(path, FAVORITES_FILE);
+}
+
+static void toggle_favorite(Model *m)
+{
+    char key[GAME_PATH + 8], line[GAME_PATH + 16];
+    char list[MAX_GAMES][GAME_PATH + 8];
+    int n = 0, found = 0, i;
+    FILE *f;
+    if (m->ngames <= 0) return;
+    game_fav_key(m->games[m->gsel], key, (int)sizeof key);
+    f = fopen(FAVORITES_FILE, "r");
+    if (f) {
+        while (fgets(line, sizeof line, f) && n < MAX_GAMES) {
+            line[strcspn(line, "\r\n")] = 0;
+            if (!line[0]) continue;
+            if (!strcmp(line, key)) { found = 1; continue; }
+            copy_str(list[n++], (int)sizeof list[0], line);
+        }
+        fclose(f);
+    }
+    if (!found) {
+        if (n < MAX_GAMES) copy_str(list[n++], (int)sizeof list[0], key);
+        m->gfav = 1;
+    } else
+        m->gfav = 0;
+    save_favorites(list, n);
+    if (m->sort == SORT_FAV) resort_games(m);
+}
+
 /* the DS folders the menu's library reads: roms/nds on the card (BANANA_ROMS, as banana-ui takes it), and the
    second card's while it is in (/run/banana/sd2/roms) */
 static void scan_games(Model *m)
@@ -474,8 +629,7 @@ static void scan_games(Model *m)
         }
         closedir(dir);
     }
-    qsort(m->games, (size_t)m->ngames, GAME_PATH, game_cmp);
-    if (m->gsel >= m->ngames) m->gsel = m->ngames > 0 ? m->ngames - 1 : 0;
+    resort_games(m);
 }
 
 /* a game's line in a playstats.tsv (nds/<rom file>): its plays, seconds and last time added to what is there */
@@ -508,8 +662,14 @@ static void free_thumbs(Model *m)
     memset(m->tstate, 0, (size_t)MAX_GAMES);
 }
 
-/* a game's picture at w x h pixels: the scraped cover (media/box beside the ROMs), else the ROM's own icon */
-static int game_picture(const char *rom, int w, int h, PxImage *img)
+/* the ROM's own icon at tile size (box art stays on the top panel) */
+static int game_thumb(const char *rom, int w, int h, PxImage *img)
+{
+    return px_nds_icon(rom, img);
+}
+
+/* the scraped cover on the top panel, else the ROM's icon */
+static int game_art(const char *rom, int w, int h, PxImage *img)
 {
     char box[GAME_PATH + 64];
     if (px_find_box(rom, box, (int)sizeof box) && px_image_load(box, w, h, img)) return 1;
@@ -534,13 +694,13 @@ static void load_images(Model *m, int quick)
     if (to > m->ngames) to = m->ngames;
     for (i = from; i < to; i++) {
         if (m->tstate[i]) continue;
-        m->tstate[i] = game_picture(m->games[i], (int)((m->grid ? TILE_IMG_W : LIST_IMG) * s),
-                                    (int)((m->grid ? TILE_IMG_H : LIST_IMG) * s), &m->thumbs[i]) ? 1 : -1;
+        m->tstate[i] = game_thumb(m->games[i], (int)((m->grid ? TILE_IMG_W : LIST_IMG) * s),
+                                  (int)((m->grid ? TILE_IMG_H : LIST_IMG) * s), &m->thumbs[i]) ? 1 : -1;
     }
     if (!quick && m->art_game != m->gsel) {
         px_image_free(&m->art);
         m->art_game = m->gsel;
-        game_picture(m->games[m->gsel], (int)(ART_W * s), (int)(ART_H * s), &m->art);
+        game_art(m->games[m->gsel], (int)(ART_W * s), (int)(ART_H * s), &m->art);
     }
 }
 
@@ -573,28 +733,36 @@ static void game_pick(Model *m, int g)
     stats_add(APP_STATS, key, &m->gplays, &m->gsecs, &m->glast);
     snprintf(emu, sizeof emu, "%s/emu/bananads", g_app);
     m->emu_ok = stat(emu, &st) == 0 && st.st_size > 0;
+    m->gfav = game_is_favorite(m->games[g]);
 }
 
 /* the library's layout as it was left: ui.conf's view = grid | list (grid when there is none) */
-static int read_grid(void)
+static void read_ui_conf(int *grid, int *sort)
 {
     char line[128];
-    int grid = 1;
     FILE *f = fopen(UI_CONF, "r");
-    if (!f) return 1;
-    while (fgets(line, sizeof line, f))
-        if (!strncmp(line, "view", 4)) grid = strstr(line, "list") == NULL;
+    *grid = 1;
+    *sort = SORT_AZ;
+    if (!f) return;
+    while (fgets(line, sizeof line, f)) {
+        if (!strncmp(line, "view", 4)) *grid = strstr(line, "list") == NULL;
+        else if (!strncmp(line, "sort", 4)) {
+            if (strstr(line, "fav")) *sort = SORT_FAV;
+            else if (strstr(line, "recent")) *sort = SORT_RECENT;
+            else *sort = SORT_AZ;
+        }
+    }
     fclose(f);
-    return grid;
 }
 
-static void save_grid(int grid)
+static void save_ui_conf(int grid, int sort)
 {
+    const char *sn[] = { "az", "fav", "recent" };
     FILE *f;
     mkdir(DATA_DIR, 0755);
     f = fopen(UI_CONF ".new", "w");
     if (!f) return;
-    fprintf(f, "view = %s\n", grid ? "grid" : "list");
+    fprintf(f, "view = %s\nsort = %s\n", grid ? "grid" : "list", sn[sort]);
     if (fclose(f) == 0) rename(UI_CONF ".new", UI_CONF);
 }
 
@@ -632,13 +800,25 @@ static int handle(Model *m, int act, int arg)
         switch (act) {
         case ACT_BACK: return !upd_installing(&m->upd);
         case ACT_MENU: m->err[0] = 0; m->view = V_MAIN; break;
-        case ACT_ABOUT: m->from_games = 1; m->view = V_ABOUT; break;
-        case ACT_X:
+        case ACT_SORT:
+            if (m->ngames <= 0) break;
+            m->sort = (m->sort + 1) % SORT_COUNT;
+            save_ui_conf(m->grid, m->sort);
+            free_thumbs(m);
+            resort_games(m);
+            break;
+        case ACT_VIEW:
             if (m->ngames <= 0) break;
             m->grid = !m->grid;
-            save_grid(m->grid);
-            free_thumbs(m);                  /* (read again at the other layout's size) */
+            save_ui_conf(m->grid, m->sort);
+            free_thumbs(m);
             game_pick(m, m->gsel);
+            break;
+        case ACT_FAV:
+            toggle_favorite(m);
+            break;
+        case ACT_RAIL:
+            if (arg >= 0 && arg < m->ngames) game_pick(m, arg);
             break;
         case ACT_UP:
             if (m->grid) { if (g % GRID_ROWS) game_pick(m, g - 1); }
@@ -702,19 +882,18 @@ static int handle(Model *m, int act, int arg)
     case ACT_MENU: m->err[0] = 0; m->view = V_GAMES; break;
     case ACT_UP: if (m->cursor > 0) m->cursor--; break;
     case ACT_DOWN: if (m->cursor < ROW_COUNT - 1) m->cursor++; break;
-    case ACT_Y: m->err[0] = 0; m->view = V_UNINSTALL; break;
+    case ACT_FAV: m->err[0] = 0; m->view = V_UNINSTALL; break;
     case ACT_ABOUT: m->from_games = 0; m->view = V_ABOUT; break;
     case ACT_ROW:
         /* a tap: the row under the finger, and its action when it already had the cursor */
         if (arg != m->cursor) { m->cursor = arg; break; }
         /* fall through */
     case ACT_OK:
+        if (m->cursor == ROW_ABOUT) { m->from_games = 0; m->view = V_ABOUT; break; }
+        /* fall through */
     case ACT_LEFT:
     case ACT_RIGHT:
-        if (m->cursor == ROW_MP) {
-            run_sh(m->enabled ? "lan.sh' 'off" : "lan.sh' 'on", m->err, (int)sizeof m->err);
-            load_state(m);
-        } else if (m->cursor == ROW_UPDATES && act != ACT_LEFT && act != ACT_RIGHT && !upd_running(&m->upd)) {
+        if (m->cursor == ROW_UPDATES && act != ACT_LEFT && act != ACT_RIGHT && !upd_running(&m->upd)) {
             if (m->upd.state == UPD_AVAILABLE) m->view = V_UPDATE;
             else upd_start(&m->upd, g_app, "bananads-lan", 0);
         }
@@ -786,6 +965,18 @@ static int open_inputs(Dev *dev, int max)
     return n;
 }
 
+static int rail_pick(int hx, const Model *m)
+{
+    int h;
+    for (h = 0; h < g_nhits; h++) {
+        PxRect r = g_hits[h].r;
+        if (g_hits[h].id != HIT_RAIL || hx < r.x || hx >= r.x + r.w) continue;
+        if (m->ngames <= 1) return 0;
+        return (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+    }
+    return -1;
+}
+
 /* a touch that lifted: what is under it on the bottom panel */
 static int touch_action(int hx, int hy, int *arg)
 {
@@ -797,9 +988,9 @@ static int touch_action(int hx, int hy, int *arg)
         case HIT_ROW: act = ACT_ROW; *arg = g_hits[h].arg; break;
         case HIT_BACK: act = ACT_BACK; break;
         case HIT_OK: act = ACT_OK; break;
-        case HIT_Y: act = ACT_Y; break;
-        case HIT_SELECT: act = ACT_ABOUT; break;
-        case HIT_X: act = ACT_X; break;
+        case HIT_Y: act = ACT_FAV; break;
+        case HIT_SORT: act = ACT_SORT; break;
+        case HIT_VIEW: act = ACT_VIEW; break;
         case HIT_START: act = ACT_MENU; break;
         default: break;
         }
@@ -831,7 +1022,7 @@ int main(int argc, char **argv)
     load_state(&m);
     copy_str(m.upd.current, sizeof m.upd.current, m.version);
     /* the library first, on the game played last (back from one, tile.sh --games: on that one) */
-    m.grid = read_grid();
+    read_ui_conf(&m.grid, &m.sort);
     m.art_game = -1;
     m.clock12 = !strcmp(g_settings.clock, "12h");
     m.thumbs = calloc(MAX_GAMES, sizeof *m.thumbs);
@@ -873,8 +1064,20 @@ int main(int argc, char **argv)
                 }
             }
         }
-        if (r == 0) {                            /* a quiet second: only the clock and the battery can change */
+        if (r == 0) {
             if (status_tick(&m)) dirty = 1;
+            {
+                int k = px_repeat_due(&g_rep, ticks());
+                if (k) act = key_action(k, 1);
+            }
+            if (act != ACT_NONE) {
+                Snap before = snap(&m);
+                int leave = handle(&m, act, arg);
+                const char *snd = sound_of(act, before, &m, leave);
+                if (snd) px_sound_play(snd);
+                if (leave) break;
+                dirty = 1;
+            }
             continue;
         }
         for (i = 0; i < ndev; i++) {
@@ -887,11 +1090,23 @@ int main(int argc, char **argv)
                     else if (ev.type == EV_ABS && ev.code == ABS_MT_TRACKING_ID) dev[i].down = ev.value >= 0;
                     else if (ev.type == EV_KEY && ev.code == BTN_TOUCH) dev[i].down = ev.value != 0;
                     else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
+                        int hx = touch_px(dev[i].x, dev[i].minx, dev[i].maxx, g_w);
+                        int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
+                        if (dev[i].down && m.view == V_GAMES) {
+                            int g = rail_pick(hx, &m);
+                            if (g >= 0) {
+                                g_rail_drag = 1;
+                                act = ACT_RAIL;
+                                arg = g;
+                            } else if (g_rail_drag) {
+                                g = rail_pick(hx, &m);
+                                if (g >= 0) { act = ACT_RAIL; arg = g; }
+                            }
+                        }
                         if (!dev[i].down && dev[i].was) {
-                            int hx = touch_px(dev[i].x, dev[i].minx, dev[i].maxx, g_w);
-                            int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
                             int a = touch_action(hx, hy, &arg);
                             if (a) act = a;
+                            g_rail_drag = 0;
                         }
                         dev[i].was = dev[i].down;
                     }
