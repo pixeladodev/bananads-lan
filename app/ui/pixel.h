@@ -12,6 +12,7 @@
 #ifndef PIXEL_H
 #define PIXEL_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct {
@@ -37,9 +38,10 @@ typedef struct {
     PxAccent accent;
 } PxPal;
 
-/* what /data/banana/settings.conf says (theme, accent, accent_text, language, clock) */
+/* what /data/banana/settings.conf says (theme, accent, accent_text, language, clock, sounds) */
 typedef struct {
     char theme[96], accent[16], accent_text[8], language[16], clock[8];
+    char sounds[8];             /* the menu's sounds: "on" (the default) or "off" */
 } PxSettings;
 
 enum { PX_REGULAR = 0, PX_MEDIUM = 1 };
@@ -57,6 +59,18 @@ void px_settings_read(const char *path, PxSettings *st);
    colours as banana-ui reads them) and accent */
 void px_pal_make(PxPal *p, const PxSettings *st);
 extern PxPal px;                 /* the palette in use */
+/* a menu sound the theme names for name (scroll, select, back, ready...), as banana-ui reads it: the theme's
+   "sounds": { "<name>": "<file>" }, the file beside the theme's JSON or an absolute path. 1 with its path in out,
+   -1 when the theme turns it off ("off"), 0 for the menu's own */
+int px_theme_sound(const PxSettings *st, const char *name, char *out, size_t n);
+
+/* held buttons repeat, as banana-ui's lists do: after 400 ms, every 120 ms, every 60 ms once held 1.5 s.
+   px_repeat_key on each key event (value 1 down, 0 up; repeatable: this key repeats here), px_repeat_due once a
+   loop (the key code when a repeat is due, else 0), px_repeat_wait for poll's timeout (-1: nothing held) */
+typedef struct { int code; long since, last; } PxRepeat;
+void px_repeat_key(PxRepeat *r, int code, int value, int repeatable, long now_ms);
+int px_repeat_due(PxRepeat *r, long now_ms);
+int px_repeat_wait(const PxRepeat *r, long now_ms);
 
 /* fonts: Pixelify Sans Regular and Medium from dir (NULL: PIXEL_UI_FONTS, else /usr/share/banana/rnds/fonts) */
 int px_fonts_load(const char *dir);

@@ -1,6 +1,6 @@
 {
-  "check": "bin/bananads",
+  "check": "emu/bananads",
   "launch": "tile.sh",
   "post_install": "post-install.sh",
-  "pre_remove": "revert.sh"
+  "pre_remove": "pre-remove.sh"
 }

@@ -9,7 +9,7 @@ case $INNER in
     "$APPS/bananads-lan/bananads-lan") ;;
     *) echo "not a nested copy"; exit 1 ;;
 esac
-if [ -f "$OUTER/manifest" ] || [ -d "$OUTER/bin" ]; then
+if [ -f "$OUTER/manifest" ] || [ -d "$OUTER/emu" ]; then
     echo "store/apps/bananads-lan already has the app"
     exit 1
 fi

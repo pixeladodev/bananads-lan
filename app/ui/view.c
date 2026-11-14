@@ -1,10 +1,12 @@
 /* BananaDS LAN: the two panels in the menu's look (pixel.c).
-   Top: what the app sees (on or off, this BananaOS, this console, the network, the DS emulator, the version).
+   Top: what the app sees (local multiplayer on or off, this console, BananaOS, the network, its own BananaDS, the version).
    Bottom: a list as Settings and Bshare draw theirs, with the keys along the bottom. */
 #include "view.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 Hit g_hits[MAX_HITS];
 int g_nhits;
@@ -22,23 +24,19 @@ const PxTr view_tr[] = {
     { "Back", "Atrás" },
     { "Move it", "Moverla" },
     { "Ready", "Listo" },
-    { "Not supported", "No compatible" },
+    { "Emulator missing", "Falta el emulador" },
     { "This console", "Esta consola" },
     { "Network", "Red" },
     { "DS emulator", "Emulador de DS" },
     { "App version", "Versión de la app" },
     { "No network", "Sin red" },
-    { "Not BananaDS", "No es BananaDS" },
     { "Unknown", "Desconocida" },
-    { "Needs %s", "Requiere %s" },
-    { "Pick BananaDS in Settings > Nintendo DS > Emulator.",
-      "Elige BananaDS en Ajustes > Nintendo DS > Emulador." },
-    { "Open the same game on each console and go to its wireless mode: the consoles find each other.",
-      "Abre el mismo juego en cada consola y entra a su modo inalámbrico: las consolas se encuentran solas." },
-    { "Every DS game you open uses BananaDS with local multiplayer. It stays on after a reboot.",
-      "Cada juego de DS que abras usa BananaDS con multijugador local. Sigue encendido al reiniciar." },
-    { "Turned off, your games use the BananaDS that came with BananaOS.",
-      "Apagado, tus juegos usan el BananaDS que vino con BananaOS." },
+    { "Games you open in Play look for other consoles on your Wi-Fi as they start. A game's menu can change it too.",
+      "Los juegos que abras en Jugar buscan otras consolas en tu Wi-Fi al empezar. También puedes cambiarlo en el menú del juego." },
+    { "Games you open in Play start with local multiplayer off. Turn it on in the game's menu when you need it.",
+      "Los juegos que abras en Jugar empiezan sin multijugador local. Actívalo en el menú del juego cuando lo necesites." },
+    { "Open Play, pick the same game on each console and go to its wireless mode: the consoles find each other.",
+      "Entra a Jugar, elige el mismo juego en cada consola y entra a su modo inalámbrico: las consolas se encuentran solas." },
     { "About", "Acerca de" },
     { "Version", "Versión" },
     { "Made by", "Hecha por" },
@@ -76,6 +74,28 @@ const PxTr view_tr[] = {
     { "Open the same game on each console and go to its wireless mode.",
       "Abre el mismo juego en cada consola y entra a su modo inalámbrico." },
     { "Page", "Página" },
+    { "Settings", "Ajustes" },
+    { "List", "Lista" },
+    { "Grid", "Grilla" },
+    { "Play time", "Tiempo de juego" },
+    { "Last played", "Última vez" },
+    { "Not played yet", "Sin jugar todavía" },
+    { "Never", "Nunca" },
+    { "Under a minute", "Menos de un minuto" },
+    { "Today, %s", "Hoy, %s" },
+    { "Yesterday, %s", "Ayer, %s" },
+    { "Jan", "ene" }, { "Feb", "feb" }, { "Mar", "mar" }, { "Apr", "abr" }, { "May", "may" }, { "Jun", "jun" },
+    { "Jul", "jul" }, { "Aug", "ago" }, { "Sep", "sept" }, { "Oct", "oct" }, { "Nov", "nov" }, { "Dec", "dic" },
+    { "Put your .nds games in roms/nds on the card (or the second card) and open the app again.",
+      "Pon tus juegos .nds en roms/nds de la tarjeta (o de la segunda tarjeta) y abre la app de nuevo." },
+    { "This app's BananaDS is missing: reinstall the app.", "Falta el BananaDS de esta app: vuelve a instalarla." },
+    { "v%s is out: START, Updates.", "Ya salió la v%s: START, Actualizaciones." },
+    { "Pick the same game on each console and go to its wireless mode: the consoles find each other.",
+      "Elige el mismo juego en cada consola y entra a su modo inalámbrico: las consolas se encuentran solas." },
+    { "Games you open here look for other consoles on your Wi-Fi as they start. A game's menu can change it too.",
+      "Los juegos que abras aquí buscan otras consolas en tu Wi-Fi al empezar. También puedes cambiarlo en el menú del juego." },
+    { "Games you open here start with local multiplayer off. Turn it on in the game's menu when you need it.",
+      "Los juegos que abras aquí empiezan sin multijugador local. Actívalo en el menú del juego cuando lo necesites." },
     { NULL, NULL }
 };
 
@@ -119,11 +139,6 @@ static const char *model_name(const char *id)
     return T("Unknown");
 }
 
-static int is_bananads(const Model *m)
-{
-    return !strcmp(m->emulator, "bananads");
-}
-
 /* a value over its label, as the game page's stat block */
 static void stat(PxCanvas *c, float x, float y, float w, const char *label, const char *value, uint32_t rgb)
 {
@@ -138,7 +153,6 @@ void view_top(PxCanvas *c, const Model *m)
     const char *msg = NULL;
     uint32_t msg_rgb = px.ink;
     float hw, cw;
-    int ready = m->supported && is_bananads(m);
     if (m->view == V_GAMES) { games_top(c, m); return; }
     px_screen(c);
     px_status(c, "BananaDS LAN", m->battery, m->charging, m->clock);
@@ -148,28 +162,22 @@ void view_top(PxCanvas *c, const Model *m)
     /* the state, big: green on, grey off */
     hw = px_badge(c, 42, 106, 52, hero, m->enabled ? PX_BADGE_ON : PX_BADGE_OFF);
     /* beside it: ready, or why not */
-    snprintf(buf, sizeof buf, "%s", m->supported ? T("Ready") : T("Not supported"));
+    snprintf(buf, sizeof buf, "%s", m->supported ? T("Ready") : T("Emulator missing"));
     cw = px_text_w(c, PX_MEDIUM, 15, buf, PX_UPPER | PX_TRACK) + 24;
     px_chip(c, 42 + hw + 18, 117, cw, 30, 0);
     px_text(c, PX_MEDIUM, 15, 42 + hw + 30, 122, buf, m->supported ? px.ink : px.warn, PX_UPPER | PX_TRACK);
-    (void)ready;
 
     px_line_h(c, 42, 168, 556, 2, px.edge, 70);
 
     stat(c, 42, 186, 260, T("This console"), model_name(m->model), px.ink);
-    if (m->os[0] && m->want_os[0] && strcmp(m->os, m->want_os)) {
-        char need[64];
-        snprintf(need, sizeof need, T("Needs %s"), m->want_os);
-        snprintf(buf, sizeof buf, "%s  ·  %s", m->os, need);
-        stat(c, 330, 186, 260, "BananaOS", buf, px.warn);
-    } else stat(c, 330, 186, 260, "BananaOS", m->os[0] ? m->os : "?", px.ink);
+    stat(c, 330, 186, 260, "BananaOS", m->os[0] ? m->os : "?", px.ink);
 
     if (!m->ip[0]) snprintf(net, sizeof net, "%s", T("No network"));
     else if (!strncmp(m->ip, "10.42.0.", 8)) snprintf(net, sizeof net, "Direct Link  ·  %s", m->ip);
     else snprintf(net, sizeof net, "Wi-Fi  ·  %s", m->ip);
     stat(c, 42, 254, 260, T("Network"), net, m->ip[0] ? px.ink : px.muted);
-    stat(c, 330, 254, 260, T("DS emulator"), is_bananads(m) ? "BananaDS" : T("Not BananaDS"),
-         is_bananads(m) ? px.ink : px.warn);
+    stat(c, 330, 254, 260, T("DS emulator"), m->supported ? "BananaDS LAN" : T("Emulator missing"),
+         m->supported ? px.ink : px.warn);
 
     if (m->upd.state == UPD_AVAILABLE) {
         char avail[64];
@@ -181,8 +189,7 @@ void view_top(PxCanvas *c, const Model *m)
     px_line_h(c, 42, 380, 556, 2, px.edge, 70);
     if (m->err[0]) { msg = m->err; msg_rgb = px.warn; }
     else if (!m->supported && m->reason[0]) { msg = m->reason; msg_rgb = px.warn; }
-    else if (!is_bananads(m)) msg = T("Pick BananaDS in Settings > Nintendo DS > Emulator.");
-    else msg = T("Open the same game on each console and go to its wireless mode: the consoles find each other.");
+    else msg = T("Pick the same game on each console and go to its wireless mode: the consoles find each other.");
     px_text_wrap(c, PX_REGULAR, 18, 42, 392, msg, msg_rgb, 556, 2, 24);
 }
 
@@ -198,44 +205,138 @@ void view_game_name(const char *path, char *dst, int n)
     dst[len] = 0;
 }
 
-/* top: the picked game, its save, and where it runs */
+/* "3 h 12 min", "45 min", "Under a minute" */
+static void fmt_time(char *buf, size_t n, long secs)
+{
+    if (secs >= 3600) snprintf(buf, n, "%ld h %ld min", secs / 3600, secs % 3600 / 60);
+    else if (secs >= 60) snprintf(buf, n, "%ld min", secs / 60);
+    else snprintf(buf, n, "%s", T("Under a minute"));
+}
+
+/* today and yesterday by the hour (the clock as settings.conf has it), older by the date */
+static void fmt_when(char *buf, size_t n, time_t t, int clock12)
+{
+    static const char *mon[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    time_t now = time(NULL);
+    struct tm a, b;
+    char hm[16];
+    long days;
+    localtime_r(&t, &a);
+    localtime_r(&now, &b);
+    if (clock12) {
+        int h = a.tm_hour % 12;
+        snprintf(hm, sizeof hm, "%d:%02d %s", h ? h : 12, a.tm_min, a.tm_hour < 12 ? "AM" : "PM");
+    } else snprintf(hm, sizeof hm, "%02d:%02d", a.tm_hour, a.tm_min);
+    {
+        struct tm da = a, db = b;
+        da.tm_hour = db.tm_hour = 12;
+        da.tm_min = db.tm_min = da.tm_sec = db.tm_sec = 0;
+        days = (long)((mktime(&db) - mktime(&da) + 43200) / 86400);
+    }
+    if (days == 0) snprintf(buf, n, T("Today, %s"), hm);
+    else if (days == 1) snprintf(buf, n, T("Yesterday, %s"), hm);
+    else snprintf(buf, n, "%d %s %d", a.tm_mday, T(mon[a.tm_mon]), a.tm_year + 1900);
+}
+
+/* a cover, or the tile's place for one: the game's icon, else its initial on the card */
+static void game_image(PxCanvas *c, const PxImage *img, float x, float y, float w, float h, const char *name, int sel)
+{
+    if (img && img->px) { px_image_draw(c, x, y, w, h, img); return; }
+    {
+        char ch[2] = { name[0] ? (char)toupper((unsigned char)name[0]) : '?', 0 };
+        float sz = h * 0.5f;
+        px_rect_a(c, x, y, w, h, sel ? 0xffffff : px.ink, 22);
+        px_text(c, PX_MEDIUM, sz, x + (w - px_text_w(c, PX_MEDIUM, sz, ch, 0)) / 2, y + (h - sz) / 2 - sz * 0.12f, ch,
+                sel ? px.on_pick_sub : px.muted, 0);
+    }
+}
+
+/* top: the picked game's cover (or its icon), its name, play time, last played and save */
 static void games_top(PxCanvas *c, const Model *m)
 {
-    char name[GAME_PATH], buf[96], dir[GAME_PATH];
-    const char *slash;
+    char name[GAME_PATH], buf[96], when[48];
     px_screen(c);
     px_status(c, "BananaDS LAN", m->battery, m->charging, m->clock);
     px_sheet(c, 18, 60, 604, 406);
-    px_label(c, 44, 84, T("Game"), px.ink);
     if (m->ngames <= 0) {
+        px_label(c, 44, 84, T("Games"), px.ink);
         px_text_wrap(c, PX_MEDIUM, 26, 42, 110, T("No DS games in roms/nds."), px.warn, 556, 2, 32);
+        px_text_wrap(c, PX_REGULAR, 18, 42, 190,
+                     T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
+                     px.muted, 556, 3, 24);
         return;
     }
     view_game_name(m->games[m->gsel], name, (int)sizeof name);
-    px_text_wrap(c, PX_MEDIUM, 28, 42, 108, name, px.ink, 556, 2, 34);
-    px_line_h(c, 42, 186, 556, 2, px.edge, 70);
+    /* (while a direction is held the big one isn't read yet: the tile's meanwhile) */
+    game_image(c, m->art_game == m->gsel ? &m->art
+                  : m->tstate && m->tstate[m->gsel] == 1 ? &m->thumbs[m->gsel] : NULL, 40, 80, ART_W, ART_H, name, 0);
+
+    px_label(c, 284, 84, T("Game"), px.muted);
+    px_text_wrap(c, PX_MEDIUM, 26, 282, 104, name, px.ink, 316, 2, 31);
+    px_line_h(c, 284, 176, 314, 2, px.edge, 70);
+
+    if (m->gsecs > 0) {
+        fmt_time(buf, sizeof buf, m->gsecs);
+        stat(c, 284, 190, 314, T("Play time"), buf, px.ink);
+    } else stat(c, 284, 190, 314, T("Play time"), T("Not played yet"), px.muted);
+    if (m->glast > 0) {
+        fmt_when(when, sizeof when, m->glast, m->clock12);
+        stat(c, 284, 246, 314, T("Last played"), when, px.ink);
+    } else stat(c, 284, 246, 314, T("Last played"), T("Never"), px.muted);
     if (m->gsave >= 0) {
-        if (m->gsave >= 1024) snprintf(buf, sizeof buf, "%ld KB", m->gsave / 1024);
-        else snprintf(buf, sizeof buf, "%ld B", m->gsave);
-        stat(c, 42, 200, 260, T("Save"), buf, px.ink);
-    } else stat(c, 42, 200, 260, T("Save"), T("None yet"), px.muted);
-    stat(c, 330, 200, 260, T("Emulator"), m->emu_ok ? "BananaDS LAN" : T("Missing"),
-         m->emu_ok ? px.ink : px.warn);
-    slash = strrchr(m->games[m->gsel], '/');
-    snprintf(dir, sizeof dir, "%.*s", slash ? (int)(slash - m->games[m->gsel]) : 0, m->games[m->gsel]);
-    stat(c, 42, 268, 556, T("Folder"), dir, px.ink);
-    px_line_h(c, 42, 330, 556, 2, px.edge, 70);
-    px_text_wrap(c, PX_REGULAR, 18, 42, 344, T("Open the same game on each console and go to its wireless mode."),
-                 px.ink, 556, 2, 24);
-    px_text_wrap(c, PX_REGULAR, 16, 42, 400, T("Saves are shared with BananaOS's BananaDS. Save states are kept apart."),
-                 px.muted, 556, 2, 22);
+        char size[24];
+        if (m->gsave >= 1024) snprintf(size, sizeof size, "%ld KB", m->gsave / 1024);
+        else snprintf(size, sizeof size, "%ld B", m->gsave);
+        fmt_when(when, sizeof when, m->gsave_time, m->clock12);
+        snprintf(buf, sizeof buf, "%s  ·  %s", size, when);
+        stat(c, 284, 302, 314, T("Save"), buf, px.ink);
+    } else stat(c, 284, 302, 314, T("Save"), T("None yet"), px.muted);
+
+    px_line_h(c, 42, 360, 556, 2, px.edge, 70);
+    {
+        /* local multiplayer, as it is for the next game, and the network it would use */
+        const char *st = m->enabled ? T("On") : T("Off");
+        float bw = px_text_w(c, PX_MEDIUM, 14, st, PX_UPPER | PX_TRACK) + 22, lw;
+        px_label(c, 42, 381, T("Local multiplayer"), px.muted);
+        lw = px_text_w(c, PX_MEDIUM, 13, T("Local multiplayer"), PX_UPPER | PX_TRACK);
+        px_chip(c, 42 + lw + 14, 374, bw, 28, 0);
+        px_text(c, PX_MEDIUM, 14, 42 + lw + 25, 379, st, m->enabled ? px.ink : px.muted, PX_UPPER | PX_TRACK);
+        if (!m->ip[0]) snprintf(buf, sizeof buf, "%s", T("No network"));
+        else if (!strncmp(m->ip, "10.42.0.", 8)) snprintf(buf, sizeof buf, "Direct Link  ·  %s", m->ip);
+        else snprintf(buf, sizeof buf, "Wi-Fi  ·  %s", m->ip);
+        px_text_fit(c, PX_REGULAR, 17, 598, 377, buf, m->ip[0] ? px.muted : px.warn, 0, 556 - lw - bw - 40, PX_RIGHT);
+    }
+    if (m->err[0]) px_text_wrap(c, PX_REGULAR, 17, 42, 414, m->err, px.warn, 556, 2, 22);
+    else if (!m->emu_ok) px_text_wrap(c, PX_REGULAR, 17, 42, 414, T("This app's BananaDS is missing: reinstall the app."), px.warn, 556, 2, 22);
+    else if (m->upd.state == UPD_AVAILABLE) {
+        snprintf(buf, sizeof buf, T("v%s is out: START, Updates."), m->upd.latest);
+        px_text_fit(c, PX_MEDIUM, 17, 42, 416, buf, px.accent.base, 0, 556, PX_LEFT);
+    } else
+        px_text_wrap(c, PX_REGULAR, 17, 42, 414, T("Open the same game on each console and go to its wireless mode."),
+                     px.muted, 556, 2, 22);
 }
 
-/* bottom: the list, GAME_ROWS at a time */
+/* the library's keys: B leaves, START the settings (local multiplayer, updates; SELECT there is About, as it is
+   here too), X the other layout, A plays */
+static void library_faces(PxCanvas *c, const Model *m)
+{
+    PxFace f[4];
+    PxRect hr[4];
+    f[0].key = "B"; f[0].label = T("Exit"); f[0].dis = 0;
+    f[1].key = "START"; f[1].label = T("Settings"); f[1].dis = 0;
+    f[2].key = "X"; f[2].label = m->grid ? T("List") : T("Grid"); f[2].dis = m->ngames <= 0;
+    f[3].key = "A"; f[3].label = T("Play"); f[3].dis = m->ngames <= 0 || !m->emu_ok;
+    px_faces(c, 422, 4, 2, f, hr);
+    add_face_hit(hr[0], HIT_BACK);
+    add_face_hit(hr[1], HIT_START);
+    add_face_hit(hr[2], HIT_X);
+    add_face_hit(hr[3], HIT_OK);
+}
+
+/* bottom: the library, as a grid scrolled sideways or as a list */
 static void games_bottom(PxCanvas *c, const Model *m)
 {
     char count[24], name[GAME_PATH];
-    PxRect r;
     int i;
     g_nhits = 0;
     px_screen(c);
@@ -243,19 +344,45 @@ static void games_bottom(PxCanvas *c, const Model *m)
     px_text_fit(c, PX_MEDIUM, 26, 38, 25, T("Games"), px.ink, 0, 400, PX_LEFT);
     snprintf(count, sizeof count, "%02d/%02d", m->ngames ? m->gsel + 1 : 0, m->ngames);
     px_text(c, PX_MEDIUM, 19, 602 - px_text_w(c, PX_MEDIUM, 19, count, 0), 30, count, px.muted, 0);
-    for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
-        int g = m->gtop + i, sel = g == m->gsel;
-        float y = 84 + i * 66;
-        view_game_name(m->games[g], name, (int)sizeof name);
-        px_card(c, 18, y, 588, 54, sel, 0);
-        px_text_fit(c, PX_MEDIUM, 20, 38, y + 14, name, sel ? px.on_pick : px.ink, 0, 548, PX_LEFT);
-        add_hit(c, 18, y, 588, 54, HIT_ROW, g);
+    if (m->ngames <= 0) {
+        px_card(c, 18, 84, 604, 120, 0, 0);
+        px_text_wrap(c, PX_MEDIUM, 22, 40, 104, T("No DS games in roms/nds."), px.ink, 560, 1, 28);
+        px_text_wrap(c, PX_REGULAR, 17, 40, 140, T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
+                     px.muted, 560, 2, 23);
+    } else if (m->grid) {
+        int cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
+        for (i = 0; i < GRID_COLS * GRID_ROWS; i++) {
+            int col = m->gleft + i / GRID_ROWS, rw = i % GRID_ROWS, g = col * GRID_ROWS + rw, sel;
+            float x, y;
+            if (col >= cols || g >= m->ngames) continue;
+            sel = g == m->gsel;
+            x = 18 + (i / GRID_ROWS) * (TILE_W + TILE_GAP);
+            y = 82 + rw * (TILE_H + 8);
+            view_game_name(m->games[g], name, (int)sizeof name);
+            px_card(c, x, y, TILE_W, TILE_H, sel, 0);
+            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H, name, sel);
+            px_text_fit(c, PX_MEDIUM, 16, x + 10, y + TILE_H - 32, name, sel ? px.on_pick : px.ink, 0, TILE_W - 20, PX_LEFT);
+            add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
+        }
+        /* where the view is along the row of columns */
+        if (cols > GRID_COLS) {
+            float tw = 604.0f * GRID_COLS / cols, tx = 18 + (604.0f - tw) * m->gleft / (cols - GRID_COLS);
+            px_rect(c, 18, 409, 604, 4, px.rail_bg);
+            px_rect(c, tx, 409, tw, 4, px.accent.base);
+        }
+    } else {
+        for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
+            int g = m->gtop + i, sel = g == m->gsel;
+            float y = 84 + i * 66;
+            view_game_name(m->games[g], name, (int)sizeof name);
+            px_card(c, 18, y, 588, 54, sel, 0);
+            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name, sel);
+            px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
+            add_hit(c, 18, y, 588, 54, HIT_ROW, g);
+        }
+        if (m->ngames > GAME_ROWS) px_rail(c, 615, 84, GAME_ROWS * 66 - 12, m->gtop, GAME_ROWS, m->ngames);
     }
-    if (m->ngames > GAME_ROWS) px_rail(c, 615, 84, GAME_ROWS * 66 - 12, m->gtop, GAME_ROWS, m->ngames);
-    px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r);
-    add_face_hit(r, HIT_BACK);
-    px_face(c, 622, 422, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r);
-    add_face_hit(r, HIT_OK);
+    library_faces(c, m);
 }
 
 static void row(PxCanvas *c, const Model *m, int i, float y)
@@ -263,16 +390,10 @@ static void row(PxCanvas *c, const Model *m, int i, float y)
     int sel = m->cursor == i && m->view == V_MAIN, dis = !view_row_enabled(m, i);
     uint32_t ink = sel && !dis ? px.on_pick : dis ? px.dim : px.ink;
     uint32_t sub = sel && !dis ? px.on_pick_sub : dis ? px.dim : px.muted;
-    const char *title = i == ROW_PLAY ? T("Play") : i == ROW_MP ? T("Local multiplayer") : T("Updates");
+    const char *title = i == ROW_MP ? T("Local multiplayer") : T("Updates");
     px_card(c, 18, y, 588, 54, sel, dis);
     px_text_fit(c, PX_MEDIUM, 20, 38, y + 14, title, ink, 0, 330, PX_LEFT);
-    if (i == ROW_PLAY) {
-        char n[32];
-        if (m->ngames == 1) snprintf(n, sizeof n, "%s", T("1 game"));
-        else if (m->ngames > 1) snprintf(n, sizeof n, T("%d games"), m->ngames);
-        else snprintf(n, sizeof n, "%s", T("No games"));
-        px_value_arrows(c, 584, y + 14, 20, n, sel ? ink : px.ink, 0, 1);
-    } else if (i == ROW_MP)
+    if (i == ROW_MP)
         px_value_arrows(c, 584, y + 14, 20, m->enabled ? T("On") : T("Off"), sel ? ink : px.ink, 1, 1);
     else if (i == ROW_UPDATES) {
         char buf[64];
@@ -301,11 +422,9 @@ static void help(PxCanvas *c, const Model *m)
 {
     char buf[320];
     const char *s;
-    if (m->cursor == ROW_PLAY)
-        s = T("Your DS games, played on this app's own BananaDS with local multiplayer. BananaOS's BananaDS stays as it is.");
-    else if (m->cursor == ROW_MP)
-        s = m->enabled ? T("Every DS game you open uses BananaDS with local multiplayer. It stays on after a reboot.")
-                       : T("Turned off, your games use the BananaDS that came with BananaOS.");
+    if (m->cursor == ROW_MP)
+        s = m->enabled ? T("Games you open here look for other consoles on your Wi-Fi as they start. A game's menu can change it too.")
+                       : T("Games you open here start with local multiplayer off. Turn it on in the game's menu when you need it.");
     else {
         upd_help(&m->upd, "BananaDS LAN", buf, sizeof buf);
         s = buf;
@@ -368,7 +487,7 @@ void view_bottom(PxCanvas *c, const Model *m)
     g_nhits = 0;
     px_screen(c);
     px_bubble(c, 18, 14, 604, 54, 0);
-    px_text_fit(c, PX_MEDIUM, 26, 38, 25, "BananaDS LAN", px.ink, 0, 440, PX_LEFT);
+    px_text_fit(c, PX_MEDIUM, 26, 38, 25, T("Settings"), px.ink, 0, 440, PX_LEFT);
     snprintf(count, sizeof count, "%02d/%02d", m->cursor + 1, ROW_COUNT);
     px_text(c, PX_MEDIUM, 19, 602 - px_text_w(c, PX_MEDIUM, 19, count, 0), 30, count, px.muted, 0);
     for (i = 0; i < ROW_COUNT; i++) row(c, m, i, 84 + i * 66);
@@ -379,10 +498,10 @@ void view_bottom(PxCanvas *c, const Model *m)
         PxFace f[4];
         PxRect hr[4];
         int inst = upd_installing(&m->upd);
-        f[0].key = "B"; f[0].label = T("Exit"); f[0].dis = inst;
+        f[0].key = "B"; f[0].label = T("Back"); f[0].dis = 0;
         f[1].key = "SELECT"; f[1].label = T("About"); f[1].dis = 0;
         f[2].key = "Y"; f[2].label = T("Uninstall"); f[2].dis = inst;
-        f[3].key = "A"; f[3].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : m->cursor == ROW_PLAY ? T("Open") : T("Change");
+        f[3].key = "A"; f[3].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : T("Change");
         f[3].dis = inst || (m->cursor == ROW_UPDATES && upd_running(&m->upd));
         px_faces(c, 422, 4, 2, f, hr);
         add_face_hit(hr[0], HIT_BACK);

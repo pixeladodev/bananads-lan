@@ -44,6 +44,7 @@ void px_settings_read(const char *path, PxSettings *st)
     put(st->accent_text, sizeof st->accent_text, "auto");
     put(st->language, sizeof st->language, "en");
     put(st->clock, sizeof st->clock, "24h");
+    put(st->sounds, sizeof st->sounds, "on");
     if (!path) path = getenv("PIXEL_UI_SETTINGS");
     if (!path || !path[0]) path = "/data/banana/settings.conf";
     f = fopen(path, "r");
@@ -63,6 +64,7 @@ void px_settings_read(const char *path, PxSettings *st)
         else if (!strcmp(k, "accent_text")) put(st->accent_text, sizeof st->accent_text, v);
         else if (!strcmp(k, "language")) put(st->language, sizeof st->language, v);
         else if (!strcmp(k, "clock")) put(st->clock, sizeof st->clock, v);
+        else if (!strcmp(k, "sounds")) put(st->sounds, sizeof st->sounds, v);
     }
     fclose(f);
 }
@@ -171,7 +173,7 @@ static void th_str(Th *t, char *out, size_t n)
 static int th_keep(const char *k)
 {
     return !strcmp(k, "base") || !strcmp(k, "name") || !strncmp(k, "accent", 6) || !strncmp(k, "colors.", 7) ||
-           !strcmp(k, "background.dither");
+           !strcmp(k, "background.dither") || !strncmp(k, "sounds.", 7);
 }
 
 static void th_put(Th *t, const char *k, const char *v)
@@ -304,6 +306,56 @@ static void th_set(const Th *t, const char *name, uint32_t *field)
 {
     uint32_t c;
     if (th_color(th_get(t, name), &c, NULL)) *field = c;
+}
+
+int px_theme_sound(const PxSettings *st, const char *name, char *out, size_t n)
+{
+    char key[64], path[512];
+    const char *v, *slash;
+    Th th;
+    FILE *f;
+    if (!st || !theme_read(st->theme, &th)) return 0;
+    snprintf(key, sizeof key, "sounds.%s", name);
+    v = th_get(&th, key);
+    if (!v[0]) return 0;
+    if (!strcmp(v, "off")) return -1;
+    if (v[0] == '/') put(out, n, v);
+    else {
+        if (!theme_path(st->theme, path, sizeof path)) return 0;
+        slash = strrchr(path, '/');
+        snprintf(out, n, "%.*s/%s", slash ? (int)(slash - path) : 1, slash ? path : ".", v);
+    }
+    if (!(f = fopen(out, "rb"))) return 0;    /* (a file that isn't there: the menu's own, as banana-ui does) */
+    fclose(f);
+    return 1;
+}
+
+/* ---- held buttons ------------------------------------------------------------------------------------------ */
+
+void px_repeat_key(PxRepeat *r, int code, int value, int repeatable, long now_ms)
+{
+    if (value == 1) {
+        if (repeatable) { r->code = code; r->since = r->last = now_ms; }
+        else r->code = 0;
+    } else if (value == 0 && code == r->code) r->code = 0;
+}
+
+static long rep_gap(const PxRepeat *r, long now_ms) { return now_ms - r->since > 1500 ? 60 : 120; }
+
+int px_repeat_due(PxRepeat *r, long now_ms)
+{
+    if (!r->code || now_ms - r->since < 400 || now_ms - r->last < rep_gap(r, now_ms)) return 0;
+    r->last = now_ms;
+    return r->code;
+}
+
+int px_repeat_wait(const PxRepeat *r, long now_ms)
+{
+    long w;
+    if (!r->code) return -1;
+    if (now_ms - r->since < 400) return (int)(400 - (now_ms - r->since));
+    w = r->last + rep_gap(r, now_ms) - now_ms;
+    return w < 0 ? 0 : (int)w;
 }
 
 void px_pal_make(PxPal *p, const PxSettings *st)

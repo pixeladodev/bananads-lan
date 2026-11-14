@@ -1,5 +1,5 @@
 #!/bin/sh
-# Off, then delete this app and its Apps tile. The UI asks first.
+# Delete this app and its Apps tile (and anything an older version left behind). The UI asks first.
 set -eu
 APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 case $APP in
@@ -7,7 +7,7 @@ case $APP in
     *) echo "refusing to remove $APP" >&2; exit 1 ;;
 esac
 . "$APP/common.sh"
-mp_revert
+mp_legacy_cleanup || true
 rm -f "/data/store/tiles/BananaDS LAN.sh" "/data/store/tiles/._BananaDS LAN.sh" \
     "/data/store/tiles/.DS_Store" "/data/store/tiles/media/box/BananaDS LAN.png"
 rmdir /data/store/tiles/media/box /data/store/tiles/media 2>/dev/null || true
