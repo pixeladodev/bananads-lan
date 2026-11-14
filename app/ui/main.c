@@ -46,8 +46,6 @@ static char g_app[512];
 static PxRepeat g_rep;            /* the direction held down */
 static PxRepeat g_page;           /* L/R page held */
 static int g_rail_drag;           /* the finger is dragging a scrollbar thumb */
-static int g_touch_row;           /* second tap on the same row launches */
-static long g_touch_row_ms;
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 /* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
 #define PLAY_EXIT 76
@@ -1281,20 +1279,7 @@ int main(int argc, char **argv)
                                 arg = g;
                             } else {
                                 a = touch_action(hx, hy, &arg);
-                                if (a == ACT_ROW && m.view == V_GAMES) {
-                                    long now = ticks();
-                                    if (arg == m.gsel && g_touch_row == arg && now - g_touch_row_ms < 450)
-                                        act = ACT_ROW;
-                                    else if (arg != m.gsel) {
-                                        g_touch_row = arg;
-                                        g_touch_row_ms = now;
-                                        act = ACT_ROW;
-                                    } else {
-                                        g_touch_row = arg;
-                                        g_touch_row_ms = now;
-                                    }
-                                } else if (a)
-                                    act = a;
+                                if (a) act = a;
                             }
                         }
                         dev[i].was = dev[i].down;

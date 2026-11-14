@@ -116,6 +116,9 @@ float px_text_label(PxCanvas *c, int face, float size, float x, float y, const c
 /* ms until the marquee needs another frame, or -1 (set during px_text_label) */
 int px_marquee_wake_ms(void);
 void px_marquee_reset(void);
+void px_marquee_begin(void);
+void px_marquee_preview(const char *s, double elapsed_ms);
+int px_marquee_consume_seed(void);
 /* wrapped text; returns the lines used */
 int px_text_wrap(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, float max_w,
                  int max_lines, float line_h);

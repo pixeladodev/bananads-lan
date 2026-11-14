@@ -24,8 +24,9 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define TILE_W 114.0f
 #define TILE_H 102.0f
 #define TILE_GAP 8.0f
-#define LIST_CARD_W 588.0f
-#define LIST_RAIL_X 612.0f
+#define LIST_CARD_W 582.0f
+#define LIST_RAIL_GAP 16.0f
+#define LIST_RAIL_X (18.0f + LIST_CARD_W + LIST_RAIL_GAP)
 #define LIST_TEXT_INSET 12.0f
 #define FAV_MARK 9.0f
 #define TILE_IMG_W (TILE_W - 16.0f)

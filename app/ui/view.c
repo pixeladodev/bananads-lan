@@ -442,9 +442,10 @@ static void games_bottom(PxCanvas *c, const Model *m)
         static int mq_gsel = -1;
         float list_h = LIB_FACE_Y - LIST_Y0 - 8;
         float text_max = LIST_CARD_W - 86 - FAV_MARK - 18 - LIST_TEXT_INSET;
+        px_marquee_begin();
         if (m->gsel != mq_gsel) {
             mq_gsel = m->gsel;
-            px_marquee_reset();
+            if (!px_marquee_consume_seed()) px_marquee_reset();
         }
         for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
             int g = m->gtop + i, sel = g == m->gsel;

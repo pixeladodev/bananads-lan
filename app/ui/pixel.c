@@ -696,6 +696,7 @@ static int g_clip_on, g_clip_x0, g_clip_y0, g_clip_x1, g_clip_y1;
 static int g_mq_wake = -1;
 static char g_mq_key[256];
 static double g_mq_since;
+static int g_mq_seeded;
 
 static void clip_push(PxCanvas *c, float x, float y, float w, float h)
 {
@@ -743,7 +744,12 @@ static float mq_offset(double elapsed, float overflow, int *moving)
 
 int px_marquee_wake_ms(void) { return g_mq_wake; }
 
-void px_marquee_reset(void) { g_mq_key[0] = 0; g_mq_wake = -1; }
+void px_marquee_reset(void)
+{
+    g_mq_key[0] = 0;
+    g_mq_wake = -1;
+    g_mq_seeded = 0;
+}
 
 static void blend(PxCanvas *c, int x, int y, uint32_t rgb, int a)
 {
@@ -831,11 +837,27 @@ float px_text_fit(PxCanvas *c, int face, float size, float x, float y, const cha
     return px_text(c, face, size, x, y, buf, rgb, flags);
 }
 
+void px_marquee_begin(void) { g_mq_wake = -1; }
+
+int px_marquee_consume_seed(void)
+{
+    int s = g_mq_seeded;
+    g_mq_seeded = 0;
+    return s;
+}
+
+void px_marquee_preview(const char *s, double elapsed_ms)
+{
+    put(g_mq_key, sizeof g_mq_key, s);
+    g_mq_since = px_mono_ms() - elapsed_ms;
+    g_mq_wake = 0;
+    g_mq_seeded = 1;
+}
+
 float px_text_label(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
                     float max_w, int picked)
 {
     float full = px_text_w(c, face, size, s, flags), fit = max_w;
-    g_mq_wake = -1;
     if (full <= fit)
         return px_text(c, face, size, x, y, s, rgb, flags);
     if (!picked)
@@ -1257,28 +1279,28 @@ void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hi
 
 void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total, PxRect *track, PxRect *thumb)
 {
-    float th, ty;
-    px_round(c, x, y, 5, h, 2, px.rail_bg, 255);
+    float th, ty, bar = 7;
+    px_round(c, x, y, bar, h, 3, px.rail_bg, 255);
     if (track) {
-        track->x = px_u(c, x - 5);
+        track->x = px_u(c, x - 10);
         track->y = px_u(c, y);
-        track->w = px_u(c, x + 10) - track->x;
+        track->w = px_u(c, x + bar + 12) - track->x;
         track->h = px_u(c, y + h) - track->y;
     }
     if (total <= 0) return;
     if (shown > total) shown = total;
     th = h * shown / total;
-    if (th < 44) th = 44;
+    if (th < 48) th = 48;
     if (th > h) th = h;
     ty = total > shown ? y + (h - th) * first / (total - shown) : y;
-    px_round(c, x - 1, ty, 7, th, 2, px.edge, 255);
-    px_round(c, x, ty + 1, 5, th - 2, 2, px.accent.base, 255);
-    px_rect(c, x + 1, ty + 2, 3, 4, px.accent.light);
+    px_round(c, x - 1, ty, bar + 2, th, 3, px.edge, 255);
+    px_round(c, x, ty + 1, bar, th - 2, 2, px.accent.base, 255);
+    px_rect(c, x + 1, ty + 2, bar - 2, 4, px.accent.light);
     if (thumb) {
-        thumb->x = px_u(c, x - 8);
-        thumb->y = px_u(c, ty - 6);
-        thumb->w = px_u(c, x + 14) - thumb->x;
-        thumb->h = px_u(c, ty + th + 6) - thumb->y;
+        thumb->x = px_u(c, x - 12);
+        thumb->y = px_u(c, ty - 8);
+        thumb->w = px_u(c, x + bar + 14) - thumb->x;
+        thumb->h = px_u(c, ty + th + 8) - thumb->y;
     }
 }
 

@@ -240,6 +240,12 @@ int main(int argc, char **argv)
         m.glast = time(NULL) - 600;
         ok &= shot(dir, "library-list", 640, 480, "dark", "yellow", "es", &m);
         ok &= shot(dir, "library-list", 1024, 768, "light", "yellow", "en", &m);
+        snprintf(games[4], GAME_PATH, "%s/%s", media ? media : ".",
+                 "Final Fantasy - Crystal Chronicles - Echoes of Time Deluxe Edition.nds");
+        m.gsel = 4;
+        m.gtop = 2;
+        px_marquee_preview("Final Fantasy - Crystal Chronicles - Echoes of Time Deluxe Edition", 2800);
+        ok &= shot(dir, "library-list-marquee", 640, 480, "dark", "yellow", "es", &m);
         m.upd.state = UPD_AVAILABLE;
         snprintf(m.upd.latest, sizeof m.upd.latest, "0.4.1");
         ok &= shot(dir, "library-update", 640, 480, "dark", "yellow", "es", &m);
