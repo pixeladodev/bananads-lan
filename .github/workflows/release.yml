@@ -35,6 +35,7 @@ jobs:
           bash build/assemble-release-notes.sh > "$notes"
           gh release create "$GITHUB_REF_NAME" \
             "dist/bananads-lan-${ver}.zip" \
+            dist/Install-BananaDS-LAN.sh \
             dist/SHA256SUMS \
             --title "BananaDS LAN ${ver}" \
             --notes-file "$notes"

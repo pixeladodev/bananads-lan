@@ -1,5 +1,6 @@
 app_version=0.4.0
-binary_sha=1bd9a6d09529e9a9e5ebeca64dc4a4c4fa3db3dafbb926760dcef66cabdefeeb
+bananaos=0.5.3.4
+binary_sha=ecb3b4119da558e0f4778ac0a3e207c481376b291643cfaf882e2fcedd730632
 superdrastic=49325d67ff88b022fc644e8e3187be2a6dd7c895
 melonds=906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 update_repo=pixeladodev/bananads-lan

@@ -175,3 +175,4 @@ fi
 
 export DRM_INC=$SYS/usr/include/libdrm
 "$ROOT/build/package.sh" /tmp/vmac/bananads
+sh "$ROOT/build/install-onefile.sh"
