@@ -45,7 +45,13 @@ static uint32_t *g_buf[2];
 static char g_app[512];
 static PxRepeat g_rep;            /* the direction held down */
 static PxRepeat g_page;           /* L/R page held */
-static int g_rail_drag;           /* the finger is dragging a scrollbar thumb */
+static int g_rail_drag;           /* finger on scrollbar thumb until release */
+static int g_rail_drag_gsel0;     /* selection when the drag started */
+static int g_rail_drag_x0, g_rail_drag_y0;
+static int g_rail_drag_moved;     /* finger moved far enough to change selection */
+static int g_rail_center_pick;  /* track tap: center the pick in the view */
+#define RAIL_DRAG_THRESH 10
+#define RAIL_DRAG_STEP_MAX 4       /* throttle a very fast drag */
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 /* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
 #define PLAY_EXIT 76
@@ -785,6 +791,32 @@ static void game_pick(Model *m, int g)
     game_art_pick(m);
 }
 
+/* track tap or thumb release after a drag: select and center in the grid or list when there is room */
+static void library_rail_pick(Model *m, int g)
+{
+    game_pick(m, g);
+    if (m->grid) {
+        int col = m->gsel / GRID_ROWS, cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
+        int left = col - GRID_COLS / 2;
+        if (left < 0) left = 0;
+        if (cols > GRID_COLS) {
+            int maxl = cols - GRID_COLS;
+            if (left > maxl) left = maxl;
+        } else
+            left = 0;
+        m->gleft = left;
+    } else {
+        int top = m->gsel - GAME_ROWS / 2;
+        if (top < 0) top = 0;
+        if (m->ngames > GAME_ROWS) {
+            int maxt = m->ngames - GAME_ROWS;
+            if (top > maxt) top = maxt;
+        } else
+            top = 0;
+        m->gtop = top;
+    }
+}
+
 /* L/R: advance one page (LIB_PAGE_STEP) and scroll so the selection sits on the overlapping edge */
 static void library_page(Model *m, int dir)
 {
@@ -907,7 +939,13 @@ static int handle(Model *m, int act, int arg)
             library_page(m, 1);
             break;
         case ACT_RAIL:
-            if (arg >= 0 && arg < m->ngames) game_pick(m, arg);
+            if (arg >= 0 && arg < m->ngames) {
+                if (g_rail_center_pick)
+                    library_rail_pick(m, arg);
+                else
+                    game_pick(m, arg);
+            }
+            g_rail_center_pick = 0;
             break;
         case ACT_UP:
             if (m->grid) { if (g % GRID_ROWS) game_pick(m, g - 1); }
@@ -1063,6 +1101,17 @@ static int in_rect(int hx, int hy, PxRect r)
     return hx >= r.x && hx < r.x + r.w && hy >= r.y && hy < r.y + r.h;
 }
 
+static int rail_track_rect(const Model *m, PxRect *r)
+{
+    int h, want = m->grid ? HIT_RAIL_TRACK : HIT_VRAIL_TRACK;
+    for (h = 0; h < g_nhits; h++) {
+        if (g_hits[h].id != want) continue;
+        *r = g_hits[h].r;
+        return 1;
+    }
+    return 0;
+}
+
 static int rail_thumb_at(int hx, int hy, int *out_g)
 {
     int h;
@@ -1075,57 +1124,61 @@ static int rail_thumb_at(int hx, int hy, int *out_g)
     return 0;
 }
 
-static int rail_track_jump(const Model *m, int hx, int hy, int *out_g)
+/* map a track position to a game index */
+static int rail_pos_to_game(const Model *m, PxRect tr, int pos, int axis_len)
 {
-    int h;
-    for (h = 0; h < g_nhits; h++) {
-        PxRect r = g_hits[h].r;
-        if (g_hits[h].id == HIT_RAIL_TRACK && in_rect(hx, hy, r)) {
-            if (m->ngames <= 1) { *out_g = 0; return 1; }
-            *out_g = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
-            if (*out_g < 0) *out_g = 0;
-            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
-            return 1;
-        }
-        if (g_hits[h].id == HIT_VRAIL_TRACK && in_rect(hx, hy, r)) {
-            if (m->ngames <= 1) { *out_g = 0; return 1; }
-            *out_g = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
-            if (*out_g < 0) *out_g = 0;
-            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
-            return 1;
-        }
-    }
-    return 0;
+    int span = axis_len > 0 ? axis_len : 1, p = pos;
+    if (m->ngames <= 1) return 0;
+    if (p < 0) p = 0;
+    if (p >= span) p = span - 1;
+    return (int)((long)p * (m->ngames - 1) / span);
 }
 
-static int rail_thumb_drag(const Model *m, int hx, int hy, int *out_g)
+static int rail_track_jump(const Model *m, int hx, int hy, int *out_g)
 {
-    int h;
-    (void)m;
-    for (h = 0; h < g_nhits; h++) {
-        PxRect r = g_hits[h].r;
-        if (g_hits[h].id == HIT_RAIL_TRACK && m->grid) {
-            if (m->ngames <= 1) { *out_g = 0; return 1; }
-            if (hx < r.x) hx = r.x;
-            if (hx >= r.x + r.w) hx = r.x + r.w - 1;
-            *out_g = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
-            if (*out_g < 0) *out_g = 0;
-            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
-            return 1;
-        }
-        if (g_hits[h].id == HIT_VRAIL_TRACK && !m->grid) {
-            if (m->ngames <= 1) { *out_g = 0; return 1; }
-            if (hy < r.y) hy = r.y;
-            if (hy >= r.y + r.h) hy = r.y + r.h - 1;
-            *out_g = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
-            if (*out_g < 0) *out_g = 0;
-            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
-            return 1;
-        }
+    PxRect tr;
+    if (!rail_track_rect(m, &tr)) return 0;
+    if (m->grid) {
+        if (!in_rect(hx, hy, tr)) return 0;
+        *out_g = rail_pos_to_game(m, tr, hx - tr.x, tr.w);
+    } else {
+        if (!in_rect(hx, hy, tr)) return 0;
+        *out_g = rail_pos_to_game(m, tr, hy - tr.y, tr.h);
     }
-    (void)hx;
-    (void)hy;
-    return 0;
+    return 1;
+}
+
+/* thumb drag: steps from gsel0 by how far the finger moved along the track; no change until RAIL_DRAG_THRESH */
+static int rail_thumb_drag_step(const Model *m, int hx, int hy, int *out_g)
+{
+    PxRect tr;
+    int pos, pos0, span, g, cur;
+    if (!rail_track_rect(m, &tr)) return 0;
+    if (m->grid) {
+        pos = hx - tr.x;
+        pos0 = g_rail_drag_x0 - tr.x;
+        span = tr.w;
+    } else {
+        pos = hy - tr.y;
+        pos0 = g_rail_drag_y0 - tr.y;
+        span = tr.h;
+    }
+    if (!g_rail_drag_moved) {
+        int dx = hx - g_rail_drag_x0, dy = hy - g_rail_drag_y0;
+        if (dx < 0) dx = -dx;
+        if (dy < 0) dy = -dy;
+        if (dx < RAIL_DRAG_THRESH && dy < RAIL_DRAG_THRESH) return 0;
+        g_rail_drag_moved = 1;
+    }
+    if (span <= 0) span = 1;
+    g = g_rail_drag_gsel0 + (int)((long)(pos - pos0) * (m->ngames - 1) / span);
+    if (g < 0) g = 0;
+    if (g >= m->ngames) g = m->ngames - 1;
+    cur = m->gsel;
+    if (g > cur + RAIL_DRAG_STEP_MAX) g = cur + RAIL_DRAG_STEP_MAX;
+    if (g < cur - RAIL_DRAG_STEP_MAX) g = cur - RAIL_DRAG_STEP_MAX;
+    *out_g = g;
+    return 1;
 }
 
 /* a touch that lifted: what is under it on the bottom panel */
@@ -1259,9 +1312,14 @@ int main(int argc, char **argv)
                         int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
                         if (dev[i].down && m.view == V_GAMES) {
                             int g = 0;
-                            if (rail_thumb_at(hx, hy, &g)) {
+                            if (!g_rail_drag && rail_thumb_at(hx, hy, &g)) {
                                 g_rail_drag = 1;
-                            } else if (g_rail_drag && rail_thumb_drag(&m, hx, hy, &g)) {
+                                g_rail_drag_gsel0 = m.gsel;
+                                g_rail_drag_x0 = hx;
+                                g_rail_drag_y0 = hy;
+                                g_rail_drag_moved = 0;
+                            } else if (g_rail_drag && rail_thumb_drag_step(&m, hx, hy, &g)) {
+                                g_rail_center_pick = 0;
                                 act = ACT_RAIL;
                                 arg = g;
                             }
@@ -1269,12 +1327,14 @@ int main(int argc, char **argv)
                         if (!dev[i].down && dev[i].was) {
                             int g = 0, a;
                             if (g_rail_drag) {
-                                if (rail_thumb_drag(&m, hx, hy, &g)) {
+                                if (g_rail_drag_moved && rail_thumb_drag_step(&m, hx, hy, &g)) {
+                                    g_rail_center_pick = 0;
                                     act = ACT_RAIL;
                                     arg = g;
                                 }
                                 g_rail_drag = 0;
                             } else if (m.view == V_GAMES && rail_track_jump(&m, hx, hy, &g)) {
+                                g_rail_center_pick = 1;
                                 act = ACT_RAIL;
                                 arg = g;
                             } else {
