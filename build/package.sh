@@ -1,7 +1,9 @@
 #!/bin/sh
 # Build the on-screen app and zip it.
 # The zip root is bananads-lan/, BananaDS LAN.sh and INSTALL.txt. No store/ tree.
-#   ./build/package.sh /path/to/bananads
+#   ./build/package.sh /path/to/bananads [/path/to/standalone-bananads]
+# The second binary (build/standalone-build.sh's dist/standalone/bananads) is the app's own BananaDS, emu/bananads,
+# which the Play list runs through run-emu without touching /usr/bin/bananads.
 # The version in the zip name is app_version from app/manifest.
 # The binary must match binary_sha in that file.
 # CC: an aarch64 compiler whose sysroot has libdrm. Otherwise the bananads-build:1 image is used.
@@ -51,8 +53,14 @@ else
 fi
 
 cp "$BIN" "$APP/bin/bananads"
+EMU=${2:-}
+if [ -n "$EMU" ]; then
+    [ -f "$EMU" ] || { echo "no standalone BananaDS at $EMU" >&2; exit 1; }
+    mkdir -p "$APP/emu"
+    cp "$EMU" "$APP/emu/bananads"
+fi
 cp "$ROOT/app/common.sh" "$ROOT/app/apply.sh" "$ROOT/app/revert.sh" "$ROOT/app/status.sh" \
-    "$ROOT/app/run-nds-lan" "$ROOT/app/tile.sh" "$ROOT/app/uninstall.sh" "$ROOT/app/fix-nest.sh" "$ROOT/app/update.py" "$ROOT/app/post-install.sh" \
+    "$ROOT/app/run-nds-lan" "$ROOT/app/run-emu" "$ROOT/app/tile.sh" "$ROOT/app/uninstall.sh" "$ROOT/app/fix-nest.sh" "$ROOT/app/update.py" "$ROOT/app/post-install.sh" \
     "$ROOT/app/app.json" "$ROOT/app/manifest" "$APP/"
 cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/BananaDS LAN.sh"
 # the Apps shelf's picture (tile.sh puts it in store/tiles/media/box)

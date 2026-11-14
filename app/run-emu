@@ -1,0 +1,67 @@
+#!/bin/sh
+# Play a DS game on this app's own BananaDS (emu/bananads), never on /usr/bin/bananads.
+#   run-emu <rom>
+# The places, Settings' choices, the shared saves (nds-saves) and the zip handling are BananaOS's own:
+# its /usr/libexec/banana/run-bananads is copied to /tmp with three changes:
+#   - the last line execs our emulator instead of /usr/bin/bananads;
+#   - the log goes to /data/banana/logs/bananads-lan;
+#   - the save states go to /data/states/nds-lan, so a state from our build never meets the stock
+#     BananaDS (a state is tied to the emulator's version; the in-game saves stay shared).
+# A BananaOS whose launcher has no such last line gets the minimal launcher below.
+# bananad (sleep, Power off after sleeping, the lid) finds the game through /run/banana/game.pid: while the game
+# runs it names this process (the emulator after the exec), and tile.sh puts the app's own entry back afterwards.
+APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+EMU=$APP/emu/bananads
+ROM=${1:-}
+[ -n "$ROM" ] && [ -f "$ROM" ] || { echo "run-emu: no game at '$ROM'" >&2; exit 2; }
+[ -x "$EMU" ] || chmod a+x "$EMU" 2>/dev/null
+[ -x "$EMU" ] || { echo "run-emu: $EMU is missing" >&2; exit 3; }
+SYS=/usr/libexec/banana/run-bananads
+GEN=/tmp/bananads-lan-run-bananads
+STATES=/data/states/nds-lan
+LOGS=/data/banana/logs/bananads-lan
+export BANANADS_LAN_EMU="$EMU" BANANA_ROM="$ROM"
+mkdir -p "$STATES" "$LOGS"
+
+if [ -f "$SYS" ] && grep -q '^exec /usr/bin/bananads "\$ROM"' "$SYS"; then
+    sed -e 's#^exec /usr/bin/bananads "\$ROM"#exec "$BANANADS_LAN_EMU" "$ROM"#' \
+        -e "s#^L=/data/banana/logs/bananads\\([ \t]\\)#L=$LOGS\\1#" \
+        -e "s#/data/states/nds\\([/ \"]\\|\$\\)#$STATES\\1#g" "$SYS" > "$GEN.new" && mv -f "$GEN.new" "$GEN"
+    grep -q 'exec "$BANANADS_LAN_EMU"' "$GEN" || rm -f "$GEN"
+else
+    rm -f "$GEN"
+fi
+
+# bananad: this process is the game now (the pid, and its start time as banana-ui writes it)
+if [ -f /run/banana/game.pid ]; then
+    [ -f /tmp/bananads-lan-game.pid ] || cp -f /run/banana/game.pid /tmp/bananads-lan-game.pid
+    st=$(sed 's/^.*) //' /proc/$$/stat | awk '{print $20}')
+    echo "$$ $st" > /run/banana/game.pid
+fi
+
+# the clocks a DS game gets from the menu (systems.conf's perf for [nds]: "superdrastic", the performance governor
+# that BananaDS's own governor then takes over); an app gets "balanced", and tile.sh puts that back afterwards
+perf=$(awk '/^\[/{s=$0} s=="[nds]" && /^ *perf *=/{sub(/^ *perf *= */,""); print; exit}' "${BANANA_SYSTEMS:-/run/banana/systems.conf}" 2>/dev/null)
+command -v banana-perf >/dev/null 2>&1 && banana-perf "${perf:-superdrastic}" 2>/dev/null
+
+if [ -f "$GEN" ]; then
+    echo "run-emu: $ROM on $EMU (BananaOS's launcher)" >&2
+    exec /bin/sh "$GEN" "$ROM"
+fi
+
+# Minimal launcher: what BananaOS's DS launcher contract gives the emulator
+echo "run-emu: $ROM on $EMU (minimal launcher: $SYS not recognised)" >&2
+D=/data/bananads
+mkdir -p $D /data/saves/nds
+export BANANADS_TOP=${BANANA_TOP:-DSI-2} BANANADS_TOUCH=${BANANA_TOUCH:-fe5e0000.i2c}
+export BANANADS_DATA=$D BANANADS_LOGDIR=$LOGS BANANADS_SAVES=/data/saves/nds BANANADS_STATES=$STATES BANANADS_BIOS=/data/bios
+export BANANADS_FRONTEND=kms BANANADS_SAVE_DIR=/data/saves/nds BANANADS_STATE_DIR=$STATES
+export BANANADS_RENDER_RENDERER=gengis
+[ -f $LOGS/bananads.log ] && mv -f $LOGS/bananads.log $LOGS/bananads.1.log
+export BANANADS_LOG_FILE=$LOGS/bananads.log
+[ -x /usr/libexec/banana/nds-saves ] && /usr/libexec/banana/nds-saves "$ROM"
+case "$ROM" in
+*.zip|*.ZIP) echo "run-emu: a zipped game needs BananaOS's launcher" >&2; exit 4 ;;
+esac
+cd $D
+exec "$EMU" "$ROM"

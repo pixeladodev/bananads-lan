@@ -4,6 +4,7 @@
    libdrm, both DSI panels; the buttons, and touch on the bottom panel. */
 #include "view.h"
 
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -19,6 +20,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include <drm_fourcc.h>
@@ -41,6 +43,10 @@ static uint32_t *g_buf[2];
 
 static char g_app[512];
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
+/* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
+#define PLAY_EXIT 76
+#define PLAY_FILE "/tmp/bananads-lan.play"
+#define LAST_FILE "/tmp/bananads-lan.last"
 
 static void planes_upright(void)
 {
@@ -361,6 +367,9 @@ enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y,
 /* Nintendo layout: A is the east button, B the south one, Y the west one */
 static int key_action(int code, int value)
 {
+    /* held: the list keeps moving (the kernel's autorepeat), nothing else repeats */
+    if (value == 2 && (code == KEY_UP || code == BTN_DPAD_UP || code == KEY_DOWN || code == BTN_DPAD_DOWN))
+        value = 1;
     if (value != 1) return ACT_NONE;
     switch (code) {
     case KEY_UP: case BTN_DPAD_UP: return ACT_UP;
@@ -402,6 +411,96 @@ static int app_dir(void)
     return 1;
 }
 
+/* ---- the games list ---- */
+static int game_ext(const char *name)
+{
+    const char *dot = strrchr(name, '.');
+    char e[8];
+    int i;
+    if (!dot || strlen(dot + 1) >= sizeof e) return 0;
+    for (i = 0; dot[1 + i]; i++) e[i] = (char)tolower((unsigned char)dot[1 + i]);
+    e[i] = 0;
+    return !strcmp(e, "nds") || !strcmp(e, "dsi") || !strcmp(e, "zip");
+}
+
+static const char *base_of(const char *p)
+{
+    const char *b = strrchr(p, '/');
+    return b ? b + 1 : p;
+}
+
+static int game_cmp(const void *a, const void *b)
+{
+    return strcasecmp(base_of((const char *)a), base_of((const char *)b));
+}
+
+/* the DS folders the menu's library reads: roms/nds on the card (BANANA_ROMS, as banana-ui takes it), and the
+   second card's while it is in (/run/banana/sd2/roms) */
+static void scan_games(Model *m)
+{
+    const char *roms = getenv("BANANA_ROMS");
+    char dirs[2][320];
+    int d;
+    snprintf(dirs[0], sizeof dirs[0], "%s/nds", roms && roms[0] ? roms : "/data/roms");
+    snprintf(dirs[1], sizeof dirs[1], "/run/banana/sd2/roms/nds");
+    if (!m->games) m->games = calloc(MAX_GAMES, GAME_PATH);
+    m->ngames = 0;
+    if (!m->games) return;
+    for (d = 0; d < 2; d++) {
+        DIR *dir = opendir(dirs[d]);
+        struct dirent *e;
+        if (!dir) continue;
+        while ((e = readdir(dir)) && m->ngames < MAX_GAMES) {
+            char path[GAME_PATH + 8];
+            struct stat st;
+            if (e->d_name[0] == '.' || !game_ext(e->d_name)) continue;
+            if (snprintf(path, sizeof path, "%s/%s", dirs[d], e->d_name) >= GAME_PATH) continue;
+            if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+            copy_str(m->games[m->ngames++], GAME_PATH, path);
+        }
+        closedir(dir);
+    }
+    qsort(m->games, (size_t)m->ngames, GAME_PATH, game_cmp);
+    if (m->gsel >= m->ngames) m->gsel = m->ngames > 0 ? m->ngames - 1 : 0;
+}
+
+/* the picked game's save (saves/nds/<name>.sav, the one both BananaDS share), and the list scrolled to it */
+static void game_pick(Model *m, int g)
+{
+    char name[GAME_PATH], path[GAME_PATH + 64], emu[640];
+    struct stat st;
+    if (m->ngames <= 0) { m->gsel = m->gtop = 0; m->gsave = -1; return; }
+    if (g < 0) g = 0;
+    if (g >= m->ngames) g = m->ngames - 1;
+    m->gsel = g;
+    if (m->gsel < m->gtop) m->gtop = m->gsel;
+    if (m->gsel >= m->gtop + GAME_ROWS) m->gtop = m->gsel - GAME_ROWS + 1;
+    view_game_name(m->games[g], name, (int)sizeof name);
+    snprintf(path, sizeof path, "/data/saves/nds/%s.sav", name);
+    m->gsave = stat(path, &st) == 0 ? (long)st.st_size : -1;
+    snprintf(emu, sizeof emu, "%s/emu/bananads", g_app);
+    m->emu_ok = stat(emu, &st) == 0 && st.st_size > 0;
+}
+
+static void games_open(Model *m, const char *last)
+{
+    int i;
+    scan_games(m);
+    m->view = V_GAMES;
+    if (last && last[0])
+        for (i = 0; i < m->ngames; i++)
+            if (!strcmp(m->games[i], last)) { m->gsel = i; break; }
+    game_pick(m, m->gsel);
+}
+
+static int write_line(const char *path, const char *s)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) return 0;
+    fprintf(f, "%s\n", s);
+    return fclose(f) == 0;
+}
+
 /* one action; returns 1 to leave */
 static int handle(Model *m, int act, int arg)
 {
@@ -413,8 +512,29 @@ static int handle(Model *m, int act, int arg)
         return 0;
     }
     if (m->view == V_NEST_OK) return act == ACT_OK || act == ACT_BACK;
+    if (m->view == V_GAMES) {
+        switch (act) {
+        case ACT_BACK: m->view = V_MAIN; break;
+        case ACT_UP: game_pick(m, m->gsel > 0 ? m->gsel - 1 : m->ngames - 1); break;
+        case ACT_DOWN: game_pick(m, m->gsel < m->ngames - 1 ? m->gsel + 1 : 0); break;
+        case ACT_LEFT: game_pick(m, m->gsel - GAME_ROWS); break;
+        case ACT_RIGHT: game_pick(m, m->gsel + GAME_ROWS); break;
+        case ACT_ABOUT: m->from_games = 1; m->view = V_ABOUT; break;
+        case ACT_ROW:
+            if (arg != m->gsel) { game_pick(m, arg); break; }
+            /* fall through */
+        case ACT_OK:
+            if (m->ngames <= 0 || !m->emu_ok) break;
+            if (!write_line(PLAY_FILE, m->games[m->gsel])) break;
+            write_line(LAST_FILE, m->games[m->gsel]);
+            g_exit = PLAY_EXIT;
+            return 1;
+        default: break;
+        }
+        return 0;
+    }
     if (m->view == V_ABOUT) {
-        if (act == ACT_BACK || act == ACT_ABOUT || act == ACT_OK) m->view = V_MAIN;
+        if (act == ACT_BACK || act == ACT_ABOUT || act == ACT_OK) m->view = m->games && m->from_games ? V_GAMES : V_MAIN;
         return 0;
     }
     if (m->view == V_UPDATED) {
@@ -442,7 +562,7 @@ static int handle(Model *m, int act, int arg)
     case ACT_UP: if (m->cursor > 0) m->cursor--; break;
     case ACT_DOWN: if (m->cursor < ROW_COUNT - 1) m->cursor++; break;
     case ACT_Y: m->err[0] = 0; m->view = V_UNINSTALL; break;
-    case ACT_ABOUT: m->view = V_ABOUT; break;
+    case ACT_ABOUT: m->from_games = 0; m->view = V_ABOUT; break;
     case ACT_ROW:
         /* a tap: the row under the finger, and its action when it already had the cursor */
         if (arg != m->cursor) { m->cursor = arg; break; }
@@ -450,7 +570,9 @@ static int handle(Model *m, int act, int arg)
     case ACT_OK:
     case ACT_LEFT:
     case ACT_RIGHT:
-        if (m->cursor == ROW_MP) {
+        if (m->cursor == ROW_PLAY) {
+            if (act != ACT_LEFT) games_open(m, NULL);
+        } else if (m->cursor == ROW_MP) {
             run_sh(m->enabled ? "revert.sh" : "apply.sh", m->err, (int)sizeof m->err);
             load_state(m);
         } else if (m->cursor == ROW_UPDATES && act != ACT_LEFT && act != ACT_RIGHT && !upd_running(&m->upd)) {
@@ -544,7 +666,7 @@ static int touch_action(int hx, int hy, int *arg)
     return act;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     Model m;
     Dev dev[32];
@@ -568,6 +690,19 @@ int main(void)
     copy_str(m.upd.current, sizeof m.upd.current, m.version);
     /* a look for a newer version as it opens (in the background: no network just says so) */
     if (m.view == V_MAIN) upd_start(&m.upd, g_app, "bananads-lan", 0);
+    /* back from a game (tile.sh --games): the list again, on the game just played */
+    if (m.view == V_MAIN && argc > 1 && !strcmp(argv[1], "--games")) {
+        char last[GAME_PATH] = "";
+        FILE *f = fopen(LAST_FILE, "r");
+        if (f) {
+            if (fgets(last, sizeof last, f)) last[strcspn(last, "\n")] = 0;
+            fclose(f);
+        }
+        games_open(&m, last);
+    } else {
+        scan_games(&m);
+        game_pick(&m, 0);
+    }
     status_tick(&m);
     m.dots = 1;
     while (!g_stop) {
@@ -630,5 +765,6 @@ int main(void)
     free(g_buf[0]);
     free(g_buf[1]);
     px_fonts_free();
+    free(m.games);
     return g_exit;
 }

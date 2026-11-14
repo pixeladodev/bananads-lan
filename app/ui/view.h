@@ -5,8 +5,12 @@
 #include "pixel.h"
 #include "updater.h"
 
-enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT, V_UPDATE, V_UPDATED };
-enum { ROW_MP, ROW_UPDATES, ROW_COUNT };
+enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT, V_UPDATE, V_UPDATED, V_GAMES };
+enum { ROW_PLAY, ROW_MP, ROW_UPDATES, ROW_COUNT };
+/* the games list: rows on the bottom panel at once */
+#define GAME_ROWS 5
+#define MAX_GAMES 2048
+#define GAME_PATH 384
 /* what a touch on the bottom panel does */
 enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_SELECT };
 
@@ -20,11 +24,17 @@ typedef struct {
     int dots;                    /* the animated dots, 1-3 */
     int battery, charging;
     char clock[16];
+    /* the DS games (V_GAMES), from the system's NDS folders, played on the app's own BananaDS */
+    char (*games)[GAME_PATH];
+    int ngames, gsel, gtop;
+    long gsave;                  /* the picked game's save in bytes, -1 without one */
+    int emu_ok;                  /* the app's own BananaDS (emu/bananads) is there */
+    int from_games;              /* About opened from the games list: B goes back there */
 } Model;
 
 typedef struct { PxRect r; int id, arg; } Hit;
 
-#define MAX_HITS 12
+#define MAX_HITS 16
 extern Hit g_hits[MAX_HITS];
 extern int g_nhits;
 
@@ -32,5 +42,7 @@ extern const PxTr view_tr[];
 void view_top(PxCanvas *c, const Model *m);
 void view_bottom(PxCanvas *c, const Model *m);
 int view_row_enabled(const Model *m, int row);
+/* a game's name as the list shows it: its file name without the folder and the extension */
+void view_game_name(const char *path, char *dst, int n);
 
 #endif

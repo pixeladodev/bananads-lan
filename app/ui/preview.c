@@ -136,6 +136,32 @@ int main(int argc, char **argv)
     snprintf(m.version, sizeof m.version, "0.3.1");
     m.view = V_UPDATED;
     ok &= shot(dir, "update-done", 640, 480, "dark", "yellow", "es", &m);
+    /* the games list (Play): the app's own BananaDS */
+    {
+        static char games[8][GAME_PATH] = {
+            "/data/roms/nds/Advance Wars - Dual Strike.nds", "/data/roms/nds/Bomberman.nds",
+            "/data/roms/nds/Clubhouse Games.nds", "/data/roms/nds/El Profesor Layton y la Caja de Pandora.nds",
+            "/data/roms/nds/Mario Kart DS.nds", "/data/roms/nds/New Super Mario Bros..nds",
+            "/data/roms/nds/Pokemon - Edicion Perla.nds", "/data/roms/nds/Tetris DS.zip" };
+        m = base();
+        snprintf(m.model, sizeof m.model, "rgds");
+        m.games = games;
+        m.ngames = 8;
+        m.emu_ok = 1;
+        ok &= shot(dir, "main-play", 640, 480, "dark", "yellow", "es", &m);
+        m.view = V_GAMES;
+        m.gsel = 4;
+        m.gtop = 1;
+        m.gsave = 262144;
+        ok &= shot(dir, "games", 640, 480, "dark", "yellow", "es", &m);
+        ok &= shot(dir, "games", 1024, 768, "light", "yellow", "en", &m);
+        m.gsel = 1;
+        m.gtop = 0;
+        m.gsave = -1;
+        ok &= shot(dir, "games-nosave", 640, 480, "user:sakura", "yellow", "es", &m);
+        m.ngames = 0;
+        ok &= shot(dir, "games-empty", 640, 480, "dark", "yellow", "es", &m);
+    }
     m = base();
     m.view = V_NEST;
     ok &= shot(dir, "nest", 640, 480, "light", "green", "en", &m);
