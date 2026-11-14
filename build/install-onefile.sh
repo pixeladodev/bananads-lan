@@ -41,7 +41,13 @@ chmod a+x "$DEST/tile.sh" "$DEST/lan.sh" "$DEST/status.sh" "$DEST/run-emu" "$DES
     "$DEST/fix-nest.sh" "$DEST/update.py" "$DEST/post-install.sh" "$DEST/pre-remove.sh" \
     "$DEST/ui/bananads-lan" "$DEST/emu/bananads" 2>/dev/null || true
 [ -f "$DEST/post-install.sh" ] && sh "$DEST/post-install.sh"
+if [ -f "$DEST/tile.png" ]; then
+    mkdir -p "$TILES/media/box"
+    cp "$DEST/tile.png" "$TILES/media/box/BananaDS LAN.png"
+fi
+sync 2>/dev/null || true
 rm -f "$SELF"
+exec sh "$TILES/$TILE"
 HDR
 MARK=$(($(wc -l < "$HDR") + 1))
 sed "s/ARCHIVE_LINE/$MARK/; s/ZIP_SHA_PLACEHOLDER/$ZIP_SHA/" "$HDR" > "$OUT"

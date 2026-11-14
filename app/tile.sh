@@ -80,6 +80,7 @@ while :; do
     fi
     break
 done
+[ -x "$APP/ui/bananads-lan" ] || sync 2>/dev/null || true
 # 75: the app has just updated itself (its folder is the new version now): open the new one
 if [ "$rc" = 75 ] && [ -f "$APP/tile.sh" ]; then
     exec sh "$APP/tile.sh"

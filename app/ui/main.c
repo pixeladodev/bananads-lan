@@ -1136,7 +1136,7 @@ static int handle(Model *m, int act, int arg)
         return 0;
     if (m->view == V_UNINSTALL) {
         if (act == ACT_OK) {
-            if (run_sh("uninstall.sh", m->err, (int)sizeof m->err)) return 1;
+            if (run_sh("uninstall.sh", m->err, (int)sizeof m->err)) { g_stop = 1; return 1; }
             m->view = V_MAIN;
             load_state(m);
         } else if (act == ACT_BACK) { m->view = V_MAIN; m->err[0] = 0; }
