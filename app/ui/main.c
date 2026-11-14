@@ -1032,6 +1032,11 @@ static int handle(Model *m, int act, int arg)
             m->sort = (m->sort + 1) % SORT_COUNT;
             save_ui_conf(m->grid, m->sort);
             resort_games(m);
+            if (m->ngames > 0) {
+                game_pick(m, 0);
+                m->gleft = 0;
+                m->gtop = 0;
+            }
             break;
         case ACT_VIEW:
             if (m->ngames <= 0) break;
@@ -1059,12 +1064,30 @@ static int handle(Model *m, int act, int arg)
             g_rail_center_pick = 0;
             break;
         case ACT_UP:
-            if (m->grid) { if (g % GRID_ROWS) game_pick(m, g - 1); }
-            else game_pick(m, g > 0 ? g - 1 : m->ngames - 1);
+            if (m->grid) {
+                int row = g % GRID_ROWS, col = g / GRID_ROWS;
+                if (row > 0)
+                    game_pick(m, g - 1);
+                else if (col > 0) {
+                    int prev = (col - 1) * GRID_ROWS + (GRID_ROWS - 1);
+                    if (prev >= m->ngames) prev = m->ngames - 1;
+                    game_pick(m, prev);
+                }
+            } else
+                game_pick(m, g > 0 ? g - 1 : m->ngames - 1);
             break;
         case ACT_DOWN:
-            if (m->grid) { if (g % GRID_ROWS < GRID_ROWS - 1 && g + 1 < m->ngames) game_pick(m, g + 1); }
-            else game_pick(m, g < m->ngames - 1 ? g + 1 : 0);
+            if (m->grid) {
+                int row = g % GRID_ROWS, col = g / GRID_ROWS;
+                int cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
+                if (row < GRID_ROWS - 1 && g + 1 < m->ngames)
+                    game_pick(m, g + 1);
+                else if (row == GRID_ROWS - 1 && col + 1 < cols) {
+                    int ng = (col + 1) * GRID_ROWS;
+                    if (ng < m->ngames) game_pick(m, ng);
+                }
+            } else
+                game_pick(m, g < m->ngames - 1 ? g + 1 : 0);
             break;
         case ACT_LEFT:
             if (m->grid) { if (g >= GRID_ROWS) game_pick(m, g - GRID_ROWS); }

@@ -425,7 +425,7 @@ static void games_bottom(PxCanvas *c, const Model *m)
                 px_fav_mark(c, x + TILE_W - FAV_MARK - 6, y + 6, FAV_MARK);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
         }
-        grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP) + GRID_HRAIL_GAP;
+        grid_bot = LIB_TOP + GRID_TILES_H + LIB_GRID_GAP;
         if (cols > GRID_COLS || m->ngames > 1) {
             PxRect track, thumb;
             px_hrail(c, 18, grid_bot, LIB_W, m->gsel, m->ngames, NULL, &track, &thumb);

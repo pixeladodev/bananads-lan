@@ -15,12 +15,15 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a list: rows on the bottom panel at once */
 #define GAME_ROWS 6
 #define LIST_ROW_PITCH 59.0f
-#define LIST_Y0 (LIB_TOP + (LIB_FACE_Y - LIB_TOP - 8.0f - GAME_ROWS * LIST_ROW_PITCH) * 0.5f)
+#define LIB_LEGEND_END 54.0f
+#define LIB_GRID_GAP 14.0f
+#define LIB_TOP (LIB_LEGEND_END + LIB_GRID_GAP)
+#define GRID_TILES_H (GRID_ROWS * TILE_H + (GRID_ROWS - 1) * TILE_GAP)
+#define LIST_Y0 (LIB_LEGEND_END + (LIB_FACE_Y - LIB_LEGEND_END - GAME_ROWS * LIST_ROW_PITCH) * 0.5f)
 /* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
 #define GRID_ROWS 3
 #define GRID_COLS 5
 #define LIB_W 604.0f
-#define GRID_HRAIL_GAP 10.0f
 #define TILE_W 114.0f
 #define TILE_H 102.0f
 #define TILE_GAP 8.0f
@@ -31,7 +34,6 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define FAV_MARK 9.0f
 #define TILE_IMG_W (TILE_W - 16.0f)
 #define TILE_IMG_H (TILE_H - 16.0f)
-#define LIB_TOP 56.0f
 #define LIB_FACE_Y 422.0f
 /* L/R page by this many columns (grid) or rows (list), one column/row overlaps the previous page */
 #define LIB_PAGE_STEP (GRID_COLS - 1)
