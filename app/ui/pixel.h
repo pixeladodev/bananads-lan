@@ -110,6 +110,12 @@ float px_text_dots(PxCanvas *c, int face, float size, float x, float y, const ch
 /* text cut with "..." to max_w units */
 float px_text_fit(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
                   float max_w, int align);
+/* picked: BananaOS marquee (1500 ms pause, 36 u/s); unpicked: "..." with pad at the right edge of max_w */
+float px_text_label(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
+                    float max_w, int picked);
+/* ms until the marquee needs another frame, or -1 (set during px_text_label) */
+int px_marquee_wake_ms(void);
+void px_marquee_reset(void);
 /* wrapped text; returns the lines used */
 int px_text_wrap(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, float max_w,
                  int max_lines, float line_h);
@@ -135,7 +141,7 @@ float px_keycap_w(const PxCanvas *c, const char *key);
 /* label_rgb 0: normal ink; else the label colour (e.g. BananaOS favourite pink) */
 void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit,
               uint32_t label_rgb, int fav_btn);
-void px_fav_heart(PxCanvas *c, float x, float y, float s);
+void px_fav_mark(PxCanvas *c, float x, float y, float s);
 float px_face_w(const PxCanvas *c, const char *key, const char *label);
 /* the face row along the bottom (y): the first `left` from the left edge, the rest against the right one, their
    labels made smaller (19 down to 15) until all of them fit; hits[i] (may be NULL) gets each one's area */

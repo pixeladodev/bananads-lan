@@ -19,10 +19,15 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
 #define GRID_ROWS 3
 #define GRID_COLS 5
-#define LIB_INNER_W 576.0f
-#define TILE_W 108.0f
-#define TILE_H 108.0f
+#define LIB_W 604.0f
+#define GRID_HRAIL_GAP 10.0f
+#define TILE_W 114.0f
+#define TILE_H 102.0f
 #define TILE_GAP 8.0f
+#define LIST_CARD_W 588.0f
+#define LIST_RAIL_X 612.0f
+#define LIST_TEXT_INSET 12.0f
+#define FAV_MARK 9.0f
 #define TILE_IMG_W (TILE_W - 16.0f)
 #define TILE_IMG_H (TILE_H - 16.0f)
 #define LIB_TOP 56.0f

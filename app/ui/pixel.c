@@ -376,14 +376,9 @@ int px_repeat_wait_page(const PxRepeat *r, long now_ms)
     return w < 0 ? 0 : (int)w;
 }
 
-void px_fav_heart(PxCanvas *c, float x, float y, float s)
+void px_fav_mark(PxCanvas *c, float x, float y, float s)
 {
-    uint32_t fill = px.red, rim = 0xffffff;
-    float lob = s * 0.36f, top = y + s * 0.22f;
-    px_round(c, x + s * 0.12f, top, lob, lob, lob * 0.5f, fill, 255);
-    px_round(c, x + s * 0.52f, top, lob, lob, lob * 0.5f, fill, 255);
-    px_triangle(c, x + s * 0.5f, y + s * 0.94f, (int)(s * 0.62f), 2, fill);
-    (void)rim;
+    px_rect(c, x, y, s, s, px.red);
 }
 
 void px_pal_make(PxPal *p, const PxSettings *st)
@@ -697,10 +692,64 @@ float px_text_w(const PxCanvas *c, int face, float size, const char *s, int flag
     return text_px(c, face, size, s, flags, NULL) / c->s;
 }
 
+static int g_clip_on, g_clip_x0, g_clip_y0, g_clip_x1, g_clip_y1;
+static int g_mq_wake = -1;
+static char g_mq_key[256];
+static double g_mq_since;
+
+static void clip_push(PxCanvas *c, float x, float y, float w, float h)
+{
+    int x0 = px_u(c, x), y0 = px_u(c, y), x1 = px_u(c, x + w), y1 = px_u(c, y + h);
+    g_clip_on = 1;
+    g_clip_x0 = x0 < 0 ? 0 : x0;
+    g_clip_y0 = y0 < 0 ? 0 : y0;
+    g_clip_x1 = x1 > c->w ? c->w : x1;
+    g_clip_y1 = y1 > c->h ? c->h : y1;
+}
+
+static void clip_pop(void) { g_clip_on = 0; }
+
+static double px_mono_ms(void)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+static float mq_offset(double elapsed, float overflow, int *moving)
+{
+    const double pause = 1500.0, speed = 36.0;
+    double run, cycle, t, wake;
+    if (overflow <= 0) return 0;
+    run = (double)overflow / speed * 1000.0;
+    cycle = pause + run + pause;
+    t = fmod(elapsed < 0 ? 0 : elapsed, cycle);
+    wake = -1;
+    if (t < pause) {
+        wake = pause - t;
+        g_mq_wake = (int)lround(wake);
+        return 0;
+    }
+    t -= pause;
+    if (t < run) {
+        if (moving) *moving = 1;
+        g_mq_wake = 0;
+        return (float)(t / 1000.0 * speed);
+    }
+    wake = pause - (t - run);
+    g_mq_wake = (int)lround(wake);
+    return overflow;
+}
+
+int px_marquee_wake_ms(void) { return g_mq_wake; }
+
+void px_marquee_reset(void) { g_mq_key[0] = 0; g_mq_wake = -1; }
+
 static void blend(PxCanvas *c, int x, int y, uint32_t rgb, int a)
 {
     uint32_t *p, d;
     if (a <= 0 || x < 0 || y < 0 || x >= c->w || y >= c->h) return;
+    if (g_clip_on && (x < g_clip_x0 || x >= g_clip_x1 || y < g_clip_y0 || y >= g_clip_y1)) return;
     p = &c->px[(size_t)y * (size_t)c->w + (size_t)x];
     if (a >= 255) { *p = rgb; return; }
     d = *p;
@@ -780,6 +829,30 @@ float px_text_fit(PxCanvas *c, int face, float size, float x, float y, const cha
     if (align == PX_RIGHT) x -= w;
     else if (align == PX_CENTER) x -= w / 2;
     return px_text(c, face, size, x, y, buf, rgb, flags);
+}
+
+float px_text_label(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, int flags,
+                    float max_w, int picked)
+{
+    float full = px_text_w(c, face, size, s, flags), fit = max_w;
+    g_mq_wake = -1;
+    if (full <= fit)
+        return px_text(c, face, size, x, y, s, rgb, flags);
+    if (!picked)
+        return px_text_fit(c, face, size, x, y, s, rgb, flags, fit, PX_LEFT);
+    if (strcmp(g_mq_key, s)) {
+        put(g_mq_key, sizeof g_mq_key, s);
+        g_mq_since = px_mono_ms();
+    }
+    {
+        int moving = 0;
+        float off = mq_offset(px_mono_ms() - g_mq_since, full - fit, &moving);
+        clip_push(c, x, y - 2, fit, size * 1.45f);
+        px_text(c, face, size, x - off, y, s, rgb, flags);
+        clip_pop();
+        (void)moving;
+    }
+    return full < fit ? full : fit;
 }
 
 int px_text_wrap(PxCanvas *c, int face, float size, float x, float y, const char *s, uint32_t rgb, float max_w,
@@ -1187,25 +1260,25 @@ void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int t
     float th, ty;
     px_round(c, x, y, 5, h, 2, px.rail_bg, 255);
     if (track) {
-        track->x = px_u(c, x - 8);
+        track->x = px_u(c, x - 5);
         track->y = px_u(c, y);
-        track->w = px_u(c, x + 14) - track->x;
+        track->w = px_u(c, x + 10) - track->x;
         track->h = px_u(c, y + h) - track->y;
     }
     if (total <= 0) return;
     if (shown > total) shown = total;
     th = h * shown / total;
-    if (th < 34) th = 34;
+    if (th < 44) th = 44;
     if (th > h) th = h;
     ty = total > shown ? y + (h - th) * first / (total - shown) : y;
     px_round(c, x - 1, ty, 7, th, 2, px.edge, 255);
     px_round(c, x, ty + 1, 5, th - 2, 2, px.accent.base, 255);
     px_rect(c, x + 1, ty + 2, 3, 4, px.accent.light);
     if (thumb) {
-        thumb->x = px_u(c, x - 4);
-        thumb->y = px_u(c, ty - 2);
-        thumb->w = px_u(c, x + 12) - thumb->x;
-        thumb->h = px_u(c, ty + th + 2) - thumb->y;
+        thumb->x = px_u(c, x - 8);
+        thumb->y = px_u(c, ty - 6);
+        thumb->w = px_u(c, x + 14) - thumb->x;
+        thumb->h = px_u(c, ty + th + 6) - thumb->y;
     }
 }
 
@@ -1217,12 +1290,12 @@ void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const 
         px_text(c, PX_MEDIUM, 19, x + w - cw + 4, y - 2, count, px.muted, 0);
         track_w = w - cw;
     }
-    px_round(c, x, y + 1, track_w, 10, 2, px.rail_bg, 255);
+    px_round(c, x, y + 2, track_w, 12, 2, px.rail_bg, 255);
     if (track) {
         track->x = px_u(c, x);
-        track->y = px_u(c, y - 6);
+        track->y = px_u(c, y - 8);
         track->w = px_u(c, x + track_w) - track->x;
-        track->h = px_u(c, y + 18) - track->y;
+        track->h = px_u(c, y + 22) - track->y;
     }
     if (total <= 1) {
         tw = track_w < 48 ? track_w : 48;
@@ -1233,14 +1306,14 @@ void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const 
         if (tw > track_w) tw = track_w;
         tx = x + (track_w - tw) * (float)pos / (float)(total - 1);
     }
-    px_round(c, tx - 1, y, tw + 2, 12, 2, px.edge, 255);
-    px_round(c, tx, y + 1, tw, 10, 2, px.accent.base, 255);
+    px_round(c, tx - 1, y, tw + 2, 14, 2, px.edge, 255);
+    px_round(c, tx, y + 1, tw, 12, 2, px.accent.base, 255);
     px_rect(c, tx + 2, y + 2, tw * 0.35f, 3, px.accent.light);
     if (thumb) {
-        thumb->x = px_u(c, tx - 4);
-        thumb->y = px_u(c, y - 4);
-        thumb->w = px_u(c, tx + tw + 4) - thumb->x;
-        thumb->h = px_u(c, y + 16) - thumb->y;
+        thumb->x = px_u(c, tx - 5);
+        thumb->y = px_u(c, y - 6);
+        thumb->w = px_u(c, tx + tw + 5) - thumb->x;
+        thumb->h = px_u(c, y + 20) - thumb->y;
     }
 }
 

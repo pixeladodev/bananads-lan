@@ -421,13 +421,14 @@ static void games_bottom(PxCanvas *c, const Model *m)
             px_card(c, x, y, TILE_W, TILE_H, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H,
                        name, sel);
-            if (game_is_favorite(m->games[g])) px_fav_heart(c, x + TILE_W - 17, y + 3, 13);
+            if (game_is_favorite(m->games[g]))
+                px_fav_mark(c, x + TILE_W - FAV_MARK - 6, y + 6, FAV_MARK);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
         }
-        grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP);
+        grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP) + GRID_HRAIL_GAP;
         if (cols > GRID_COLS || m->ngames > 1) {
             PxRect track, thumb;
-            px_hrail(c, 18, grid_bot, LIB_INNER_W, m->gsel, m->ngames, NULL, &track, &thumb);
+            px_hrail(c, 18, grid_bot, LIB_W, m->gsel, m->ngames, NULL, &track, &thumb);
             g_hits[g_nhits].r = track;
             g_hits[g_nhits].id = HIT_RAIL_TRACK;
             g_hits[g_nhits].arg = 0;
@@ -438,21 +439,28 @@ static void games_bottom(PxCanvas *c, const Model *m)
             g_nhits++;
         }
     } else {
+        static int mq_gsel = -1;
         float list_h = LIB_FACE_Y - LIST_Y0 - 8;
+        float text_max = LIST_CARD_W - 86 - FAV_MARK - 18 - LIST_TEXT_INSET;
+        if (m->gsel != mq_gsel) {
+            mq_gsel = m->gsel;
+            px_marquee_reset();
+        }
         for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
             int g = m->gtop + i, sel = g == m->gsel;
             float y = LIST_Y0 + i * LIST_ROW_PITCH;
             view_game_name(m->games[g], name, (int)sizeof name);
-            px_card(c, 18, y, LIB_INNER_W - 20, 54, sel, 0);
+            px_card(c, 18, y, LIST_CARD_W, 54, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name,
                        sel);
-            px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
-            if (game_is_favorite(m->games[g])) px_fav_heart(c, 18 + LIB_INNER_W - 30, y + 3, 13);
-            add_hit(c, 18, y, LIB_INNER_W - 20, 54, HIT_ROW, g);
+            px_text_label(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, text_max, sel);
+            if (game_is_favorite(m->games[g]))
+                px_fav_mark(c, 18 + LIST_CARD_W - FAV_MARK - 6, y + 6, FAV_MARK);
+            add_hit(c, 18, y, LIST_CARD_W, 54, HIT_ROW, g);
         }
         if (m->ngames > GAME_ROWS) {
             PxRect track, thumb;
-            px_rail(c, 600, LIST_Y0, list_h, m->gtop, GAME_ROWS, m->ngames, &track, &thumb);
+            px_rail(c, LIST_RAIL_X, LIST_Y0, list_h, m->gtop, GAME_ROWS, m->ngames, &track, &thumb);
             g_hits[g_nhits].r = track;
             g_hits[g_nhits].id = HIT_VRAIL_TRACK;
             g_hits[g_nhits].arg = 0;

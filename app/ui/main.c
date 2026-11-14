@@ -1103,9 +1103,10 @@ static int rail_track_jump(const Model *m, int hx, int hy, int *out_g)
 static int rail_thumb_drag(const Model *m, int hx, int hy, int *out_g)
 {
     int h;
+    (void)m;
     for (h = 0; h < g_nhits; h++) {
         PxRect r = g_hits[h].r;
-        if (g_hits[h].id == HIT_RAIL_TRACK) {
+        if (g_hits[h].id == HIT_RAIL_TRACK && m->grid) {
             if (m->ngames <= 1) { *out_g = 0; return 1; }
             if (hx < r.x) hx = r.x;
             if (hx >= r.x + r.w) hx = r.x + r.w - 1;
@@ -1114,7 +1115,7 @@ static int rail_thumb_drag(const Model *m, int hx, int hy, int *out_g)
             if (*out_g >= m->ngames) *out_g = m->ngames - 1;
             return 1;
         }
-        if (g_hits[h].id == HIT_VRAIL_TRACK) {
+        if (g_hits[h].id == HIT_VRAIL_TRACK && !m->grid) {
             if (m->ngames <= 1) { *out_g = 0; return 1; }
             if (hy < r.y) hy = r.y;
             if (hy >= r.y + r.h) hy = r.y + r.h - 1;
@@ -1124,7 +1125,6 @@ static int rail_thumb_drag(const Model *m, int hx, int hy, int *out_g)
             return 1;
         }
     }
-    (void)m;
     (void)hx;
     (void)hy;
     return 0;
@@ -1155,7 +1155,7 @@ int main(int argc, char **argv)
 {
     Model m;
     Dev dev[32];
-    int ndev, i, dirty = 1;
+    int ndev, i, dirty = 1, mq_wake = -1;
     memset(&m, 0, sizeof m);
     signal(SIGTERM, on_signal);
     signal(SIGINT, on_signal);
@@ -1199,7 +1199,11 @@ int main(int argc, char **argv)
     while (!g_stop) {
         struct pollfd pf[32];
         int r, act = ACT_NONE, arg = 0, busy = upd_running(&m.upd);
-        if (dirty) { if (m.view == V_GAMES) load_images(&m, g_rep.code != 0); draw(&m); }
+        if (dirty) {
+            if (m.view == V_GAMES) load_images(&m, g_rep.code != 0);
+            draw(&m);
+            mq_wake = (m.view == V_GAMES && !m.grid) ? px_marquee_wake_ms() : -1;
+        }
         dirty = 0;
         for (i = 0; i < ndev; i++) { pf[i].fd = dev[i].fd; pf[i].events = POLLIN; pf[i].revents = 0; }
         {
@@ -1208,6 +1212,8 @@ int main(int argc, char **argv)
             wp = px_repeat_wait_page(&g_page, ticks());
             if (w >= 0 && w < t) t = w;
             if (wp >= 0 && wp < t) t = wp;
+            if (mq_wake == 0 && t > 20) t = 20;
+            else if (mq_wake > 0 && mq_wake < t) t = mq_wake;
             r = poll(pf, (nfds_t)ndev, t);
         }
         if (r < 0) { if (errno == EINTR) continue; break; }
@@ -1223,6 +1229,7 @@ int main(int argc, char **argv)
             }
         }
         if (r == 0) {
+            if (mq_wake >= 0) dirty = 1;
             if (status_tick(&m)) dirty = 1;
             {
                 int k = px_repeat_due(&g_rep, ticks());
