@@ -14,14 +14,16 @@ enum { ROW_UPDATES, ROW_ABOUT, ROW_COUNT };
 enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a list: rows on the bottom panel at once */
 #define GAME_ROWS 5
-/* the library as a grid (the default): GRID_ROWS tiles a column, GRID_COLS columns in view, scrolled sideways */
-#define GRID_ROWS 4
-#define GRID_COLS 3
-#define TILE_W 194.0f
-#define TILE_H 88.0f
+/* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
+#define GRID_ROWS 3
+#define GRID_COLS 4
+#define TILE_W 145.0f
+#define TILE_H 108.0f
 #define TILE_GAP 8.0f
-#define TILE_IMG_W 178.0f
-#define TILE_IMG_H 72.0f
+#define TILE_IMG_W (TILE_W - 16.0f)
+#define TILE_IMG_H (TILE_H - 16.0f)
+#define LIB_TOP 56.0f
+#define LIB_FACE_Y 422.0f
 #define LIST_IMG 40.0f
 /* the cover on the top panel */
 #define ART_W 220.0f
@@ -29,7 +31,7 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define MAX_GAMES 2048
 #define GAME_PATH 384
 /* what a touch on the bottom panel does */
-enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_START, HIT_SORT, HIT_VIEW, HIT_RAIL };
+enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_START, HIT_SORT, HIT_VIEW, HIT_RAIL, HIT_VRAIL };
 
 typedef struct {
     int supported, enabled, mounted;

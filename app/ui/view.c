@@ -329,14 +329,45 @@ static const char *sort_label(int sort)
     return T("Order: A-Z");
 }
 
-/* the library's keys: arrows on the ends, L2 sort and R2 layout inward, B and START on the sides, A plays, Y favorites */
-static void library_legend(PxCanvas *c, const Model *m)
+/* top of the library panel: navigation hints and the game count in the middle */
+static void library_top_legend(PxCanvas *c, const Model *m)
 {
-    PxRect r;
+    char count[24];
     const char *sort = sort_label(m->sort);
     const char *view = m->grid ? T("List") : T("Grid");
-  float y = 424, cy = y + 14, ax, mid = 320;
+    float y = 12, cy = y + 18, mid = 320, cw;
     uint32_t ink = px.ink, dim = px.dim;
+    px_bubble(c, 18, y, 604, 42, 0);
+    if (m->ngames > 0) {
+        int vert = !m->grid;
+        px_triangle(c, 42, cy, 10, vert ? -2 : -1, ink);
+        px_triangle(c, 598, cy, 10, vert ? 2 : 1, ink);
+        px_keycap(c, 78, y + 8, "L2");
+        px_text_fit(c, PX_MEDIUM, 15, 114, y + 12, sort, ink, 0, 168, PX_LEFT);
+        add_hit(c, 74, y + 4, 210, 34, HIT_SORT, 0);
+        snprintf(count, sizeof count, "%02d / %02d", m->gsel + 1, m->ngames);
+        cw = px_text_w(c, PX_MEDIUM, 19, count, 0);
+        px_text(c, PX_MEDIUM, 19, mid - cw / 2, y + 11, count, px.muted, 0);
+        px_text_fit(c, PX_MEDIUM, 15, 468, y + 12, view, ink, 0, 90, PX_RIGHT);
+        px_keycap(c, 566, y + 8, "R2");
+        add_hit(c, 460, y + 4, 130, 34, HIT_VIEW, 0);
+        px_keycap(c, 400, y + 8, "Y");
+        px_text_fit(c, PX_MEDIUM, 15, 452, y + 12, m->gfav ? T("Remove favorite") : T("Add favorite"),
+                    m->gfav ? px.accent.base : ink, 0, 140, PX_LEFT);
+        add_hit(c, 396, y + 4, 200, 34, HIT_Y, 0);
+    } else {
+        snprintf(count, sizeof count, "%s", T("No games"));
+        cw = px_text_w(c, PX_MEDIUM, 19, count, 0);
+        px_text(c, PX_MEDIUM, 19, mid - cw / 2, y + 11, count, dim, 0);
+    }
+    (void)dim;
+}
+
+/* bottom face row only */
+static void library_bottom_faces(PxCanvas *c, const Model *m)
+{
+    PxRect r;
+    float y = LIB_FACE_Y;
     px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r);
     add_face_hit(r, HIT_BACK);
     px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r);
@@ -346,50 +377,23 @@ static void library_legend(PxCanvas *c, const Model *m)
         px_face(c, 622 - aw - 12, y, PX_RIGHT, "START", T("Settings"), 0, &r);
         add_face_hit(r, HIT_START);
     }
-    if (m->ngames > 0) {
-        int vert = !m->grid;
-        ax = 58;
-        px_triangle(c, ax, cy, 10, vert ? -2 : -1, ink);
-        ax = 580;
-        px_triangle(c, ax, cy, 10, vert ? 2 : 1, ink);
-        px_keycap(c, 96, y + 8, "L2");
-        px_text_fit(c, PX_MEDIUM, 15, 132, y + 12, sort, ink, 0, 168, PX_LEFT);
-        add_hit(c, 92, y + 4, 210, 34, HIT_SORT, 0);
-        px_text_fit(c, PX_MEDIUM, 15, 428, y + 12, view, ink, 0, 90, PX_RIGHT);
-        px_keycap(c, 526, y + 8, "R2");
-        add_hit(c, 420, y + 4, 130, 34, HIT_VIEW, 0);
-        px_keycap(c, mid - 52, y + 8, "Y");
-        px_text_fit(c, PX_MEDIUM, 15, mid + 2, y + 12,
-                    m->gfav ? T("Remove favorite") : T("Add favorite"), m->gfav ? px.accent.base : ink, 0, 140,
-                    PX_LEFT);
-        add_hit(c, mid - 56, y + 4, 200, 34, HIT_Y, 0);
-    } else {
-        px_keycap(c, mid - 24, y + 8, "Y");
-        px_text_fit(c, PX_MEDIUM, 15, mid + 26, y + 12, T("Favorite"), dim, 0, 120, PX_LEFT);
-    }
-    (void)dim;
 }
 
 /* bottom: the library, as a grid scrolled sideways or as a list */
 static void games_bottom(PxCanvas *c, const Model *m)
 {
-    char count[24], name[GAME_PATH];
+    char name[GAME_PATH];
     PxRect rail;
     int i;
+    float grid_bot;
     g_nhits = 0;
     px_screen(c);
-  snprintf(count, sizeof count, "%02d / %02d", m->ngames ? m->gsel + 1 : 0, m->ngames);
-    px_hrail(c, 18, 18, 604, m->gsel, m->ngames > 0 ? m->ngames : 1, count, &rail);
-    if (m->ngames > 0) {
-        g_hits[g_nhits].r = rail;
-        g_hits[g_nhits].id = HIT_RAIL;
-        g_hits[g_nhits].arg = 0;
-        g_nhits++;
-    }
+    library_top_legend(c, m);
     if (m->ngames <= 0) {
-        px_card(c, 18, 56, 604, 120, 0, 0);
-        px_text_wrap(c, PX_MEDIUM, 22, 40, 76, T("No DS games in roms/nds."), px.ink, 560, 1, 28);
-        px_text_wrap(c, PX_REGULAR, 17, 40, 112, T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
+        px_card(c, 18, LIB_TOP, 604, 120, 0, 0);
+        px_text_wrap(c, PX_MEDIUM, 22, 40, LIB_TOP + 20, T("No DS games in roms/nds."), px.ink, 560, 1, 28);
+        px_text_wrap(c, PX_REGULAR, 17, 40, LIB_TOP + 56,
+                     T("Put your .nds games in roms/nds on the card (or the second card) and open the app again."),
                      px.muted, 560, 2, 23);
     } else if (m->grid) {
         int cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
@@ -399,25 +403,48 @@ static void games_bottom(PxCanvas *c, const Model *m)
             if (col >= cols || g >= m->ngames) continue;
             sel = g == m->gsel;
             x = 18 + (i / GRID_ROWS) * (TILE_W + TILE_GAP);
-            y = 40 + rw * (TILE_H + TILE_GAP);
+            y = LIB_TOP + rw * (TILE_H + TILE_GAP);
             view_game_name(m->games[g], name, (int)sizeof name);
             px_card(c, x, y, TILE_W, TILE_H, sel, 0);
-            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H, name, sel);
+            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H,
+                       name, sel);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
         }
+        grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP);
+        if (cols > GRID_COLS) {
+            px_hrail(c, 18, grid_bot, 604, m->gsel, m->ngames, NULL, &rail);
+            g_hits[g_nhits].r = rail;
+            g_hits[g_nhits].id = HIT_RAIL;
+            g_hits[g_nhits].arg = 0;
+            g_nhits++;
+        } else if (m->ngames > 1) {
+            px_hrail(c, 18, grid_bot, 604, m->gsel, m->ngames, NULL, &rail);
+            g_hits[g_nhits].r = rail;
+            g_hits[g_nhits].id = HIT_RAIL;
+            g_hits[g_nhits].arg = 0;
+            g_nhits++;
+        }
     } else {
+        float list_h = LIB_FACE_Y - LIB_TOP - 8;
         for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
             int g = m->gtop + i, sel = g == m->gsel;
-            float y = 42 + i * 66;
+            float y = LIB_TOP + i * 66;
             view_game_name(m->games[g], name, (int)sizeof name);
             px_card(c, 18, y, 588, 54, sel, 0);
-            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name, sel);
+            game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name,
+                       sel);
             px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
             add_hit(c, 18, y, 588, 54, HIT_ROW, g);
         }
-        if (m->ngames > GAME_ROWS) px_rail(c, 615, 42, GAME_ROWS * 66 - 8, m->gtop, GAME_ROWS, m->ngames);
+        if (m->ngames > GAME_ROWS) {
+            px_rail(c, 615, LIB_TOP, list_h, m->gtop, GAME_ROWS, m->ngames, &rail);
+            g_hits[g_nhits].r = rail;
+            g_hits[g_nhits].id = HIT_VRAIL;
+            g_hits[g_nhits].arg = 0;
+            g_nhits++;
+        }
     }
-    library_legend(c, m);
+    library_bottom_faces(c, m);
 }
 
 static void row(PxCanvas *c, const Model *m, int i, float y)
@@ -525,7 +552,7 @@ void view_bottom(PxCanvas *c, const Model *m)
     snprintf(count, sizeof count, "%02d/%02d", m->cursor + 1, ROW_COUNT);
     px_text(c, PX_MEDIUM, 19, 602 - px_text_w(c, PX_MEDIUM, 19, count, 0), 30, count, px.muted, 0);
     for (i = 0; i < ROW_COUNT; i++) row(c, m, i, 84 + i * 66);
-    px_rail(c, 615, 84, ROW_COUNT * 66 - 12, m->cursor, 1, ROW_COUNT);
+    px_rail(c, 615, 84, ROW_COUNT * 66 - 12, m->cursor, 1, ROW_COUNT, NULL);
     help(c, m);
 
     if (m->view == V_MAIN) {

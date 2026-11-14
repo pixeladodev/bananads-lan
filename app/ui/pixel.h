@@ -135,7 +135,7 @@ float px_face_w(const PxCanvas *c, const char *key, const char *label);
 typedef struct { const char *key, *label; int dis; } PxFace;
 void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hits);
 /* the scroll rail on the right: first shown, shown, total */
-void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total);
+void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total, PxRect *hit);
 /* a horizontal track (y): pos out of total-1; count text at the right; *hit is the draggable track in pixels */
 void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const char *count, PxRect *hit);
 /* the status row (y 18-46): the app's brand plate on the left, battery and clock on the right */

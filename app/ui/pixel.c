@@ -1138,10 +1138,16 @@ void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hi
     g_face_size = 19;
 }
 
-void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total)
+void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total, PxRect *hit)
 {
     float th, ty;
     px_round(c, x, y, 5, h, 2, px.rail_bg, 255);
+    if (hit) {
+        hit->x = px_u(c, x - 8);
+        hit->y = px_u(c, y);
+        hit->w = px_u(c, x + 22) - hit->x;
+        hit->h = px_u(c, y + h) - hit->y;
+    }
     if (total <= 0) return;
     if (shown > total) shown = total;
     th = h * shown / total;

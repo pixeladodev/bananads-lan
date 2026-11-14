@@ -628,6 +628,13 @@ static void scan_games(Model *m)
             if (e->d_name[0] == '.' || !game_ext(e->d_name)) continue;
             if (snprintf(path, sizeof path, "%s/%s", dirs[d], e->d_name) >= GAME_PATH) continue;
             if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+            {
+                int j;
+                const char *bn = base_of(path);
+                for (j = 0; j < m->ngames; j++)
+                    if (!strcasecmp(base_of(m->games[j]), bn)) break;
+                if (j < m->ngames) continue;
+            }
             copy_str(m->games[m->ngames++], GAME_PATH, path);
         }
         closedir(dir);
@@ -970,16 +977,25 @@ static int open_inputs(Dev *dev, int max)
     return n;
 }
 
-static int rail_pick(int hx, const Model *m)
+static int rail_pick(int hx, int hy, const Model *m, int *out)
 {
     int h;
     for (h = 0; h < g_nhits; h++) {
         PxRect r = g_hits[h].r;
-        if (g_hits[h].id != HIT_RAIL || hx < r.x || hx >= r.x + r.w) continue;
-        if (m->ngames <= 1) return 0;
-        return (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+        if (g_hits[h].id == HIT_RAIL && hx >= r.x && hx < r.x + r.w) {
+            if (m->ngames <= 1) { *out = 0; return 1; }
+            *out = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+            return 1;
+        }
+        if (g_hits[h].id == HIT_VRAIL && hy >= r.y && hy < r.y + r.h) {
+            if (m->ngames <= 1) { *out = 0; return 1; }
+            *out = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
+            if (*out < 0) *out = 0;
+            if (*out >= m->ngames) *out = m->ngames - 1;
+            return 1;
+        }
     }
-    return -1;
+    return 0;
 }
 
 /* a touch that lifted: what is under it on the bottom panel */
@@ -1098,14 +1114,14 @@ int main(int argc, char **argv)
                         int hx = touch_px(dev[i].x, dev[i].minx, dev[i].maxx, g_w);
                         int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
                         if (dev[i].down && m.view == V_GAMES) {
-                            int g = rail_pick(hx, &m);
-                            if (g >= 0) {
+                            int g = 0;
+                            if (rail_pick(hx, hy, &m, &g)) {
                                 g_rail_drag = 1;
                                 act = ACT_RAIL;
                                 arg = g;
-                            } else if (g_rail_drag) {
-                                g = rail_pick(hx, &m);
-                                if (g >= 0) { act = ACT_RAIL; arg = g; }
+                            } else if (g_rail_drag && rail_pick(hx, hy, &m, &g)) {
+                                act = ACT_RAIL;
+                                arg = g;
                             }
                         }
                         if (!dev[i].down && dev[i].was) {
