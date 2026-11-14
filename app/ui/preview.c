@@ -92,7 +92,7 @@ static int shot(const char *dir, const char *name, int w, int h, const char *the
     {
         const char *stamp = getenv("PREVIEW_STAMP");
         if (stamp && stamp[0])
-            snprintf(path, sizeof path, "%s/bananads-lan-%s-%s-%dx%d-%s%s%s.png", dir, name, stamp, w, h,
+            snprintf(path, sizeof path, "%s/%s-bananads-lan-%s-%dx%d-%s%s%s.png", dir, stamp, name, w, h,
                      strncmp(theme, "user:", 5) ? theme : theme + 5,
                      strcmp(lang, "en") ? "-" : "", strcmp(lang, "en") ? lang : "");
         else

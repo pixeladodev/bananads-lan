@@ -273,9 +273,7 @@ static void games_top(PxCanvas *c, const Model *m)
         return;
     }
     view_game_name(m->games[m->gsel], name, (int)sizeof name);
-    /* (while a direction is held the big one isn't read yet: the tile's meanwhile) */
-    game_image(c, m->art_game == m->gsel ? &m->art
-                  : m->tstate && m->tstate[m->gsel] == 1 ? &m->thumbs[m->gsel] : NULL, 40, 80, ART_W, ART_H, name, 0);
+    game_image(c, m->art_game == m->gsel && m->art.px ? &m->art : NULL, 40, 80, ART_W, ART_H, name, 0);
 
     px_label(c, 284, 84, T("Game"), px.muted);
     px_text_wrap(c, PX_MEDIUM, 26, 282, 104, name, px.ink, 316, 2, 31);
@@ -440,10 +438,10 @@ static void games_bottom(PxCanvas *c, const Model *m)
             g_nhits++;
         }
     } else {
-        float list_h = LIB_FACE_Y - LIB_TOP - 8;
+        float list_h = LIB_FACE_Y - LIST_Y0 - 8;
         for (i = 0; i < GAME_ROWS && m->gtop + i < m->ngames; i++) {
             int g = m->gtop + i, sel = g == m->gsel;
-            float y = LIB_TOP + i * 66;
+            float y = LIST_Y0 + i * LIST_ROW_PITCH;
             view_game_name(m->games[g], name, (int)sizeof name);
             px_card(c, 18, y, 588, 54, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name,
@@ -452,7 +450,7 @@ static void games_bottom(PxCanvas *c, const Model *m)
             add_hit(c, 18, y, 588, 54, HIT_ROW, g);
         }
         if (m->ngames > GAME_ROWS) {
-            px_rail(c, 615, LIB_TOP, list_h, m->gtop, GAME_ROWS, m->ngames, &rail);
+            px_rail(c, 615, LIST_Y0, list_h, m->gtop, GAME_ROWS, m->ngames, &rail);
             g_hits[g_nhits].r = rail;
             g_hits[g_nhits].id = HIT_VRAIL;
             g_hits[g_nhits].arg = 0;

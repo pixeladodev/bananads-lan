@@ -456,6 +456,7 @@ static int game_cmp(const void *a, const void *b)
 static void stats_add(const char *file, const char *key, int *plays, long *secs, time_t *last);
 static void game_pick(Model *m, int g);
 static void library_page(Model *m, int dir);
+static void free_thumbs(Model *m);
 
 static void game_fav_key(const char *rom, char *dst, int n)
 {
@@ -557,6 +558,7 @@ static void resort_games(Model *m)
             if (!strcmp(m->games[i], last)) { sel = i; break; }
     }
     if (sel >= m->ngames) sel = m->ngames > 0 ? m->ngames - 1 : 0;
+    free_thumbs(m);
     game_pick(m, sel);
 }
 
@@ -695,6 +697,17 @@ static int game_art(const char *rom, int w, int h, PxImage *img)
     return px_nds_icon(rom, img);
 }
 
+static void game_art_pick(Model *m)
+{
+    float s = g_h / 480.0f;
+    if (m->ngames <= 0) return;
+    if (m->art_game == m->gsel && m->art.px) return;
+    px_image_free(&m->art);
+    m->art_game = m->gsel;
+    if (!game_art(m->games[m->gsel], (int)(ART_W * s), (int)(ART_H * s), &m->art))
+        m->art_game = -1;
+}
+
 /* the pictures the panels show next: the covers in view (and the next column or page), the picked one's big.
    The ones far from the view are let go, so a big library stays small. A cover is some 16 ms to read on the
    handheld: while a direction is held (quick) only the tiles in view, the top panel's when it is let go */
@@ -715,11 +728,6 @@ static void load_images(Model *m, int quick)
         if (m->tstate[i]) continue;
         m->tstate[i] = game_thumb(m->games[i], (int)((m->grid ? TILE_IMG_W : LIST_IMG) * s),
                                   (int)((m->grid ? TILE_IMG_H : LIST_IMG) * s), &m->thumbs[i]) ? 1 : -1;
-    }
-    if (!quick && m->art_game != m->gsel) {
-        px_image_free(&m->art);
-        m->art_game = m->gsel;
-        game_art(m->games[m->gsel], (int)(ART_W * s), (int)(ART_H * s), &m->art);
     }
 }
 
@@ -753,9 +761,10 @@ static void game_pick(Model *m, int g)
     snprintf(emu, sizeof emu, "%s/emu/bananads", g_app);
     m->emu_ok = stat(emu, &st) == 0 && st.st_size > 0;
     m->gfav = game_is_favorite(m->games[g]);
+    game_art_pick(m);
 }
 
-/* L/R: jump LIB_PAGE_STEP columns or LIST_PAGE_STEP rows; scroll to the page edge with one column/row overlapping */
+/* L/R: advance one page (LIB_PAGE_STEP) and scroll so the selection sits on the overlapping edge */
 static void library_page(Model *m, int dir)
 {
     int col, row, cols, g, ncol;
@@ -771,15 +780,9 @@ static void library_page(Model *m, int dir)
         g = ncol * GRID_ROWS + row;
         if (g >= m->ngames) g = m->ngames - 1;
         game_pick(m, g);
-        col = m->gsel / GRID_ROWS;
-        cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
-        if (dir > 0) {
-            m->gleft = col - GRID_COLS + 1;
-            if (m->gleft < 0) m->gleft = 0;
-        } else {
-            m->gleft = col;
-            if (m->gleft > cols - GRID_COLS) m->gleft = cols > GRID_COLS ? cols - GRID_COLS : 0;
-        }
+        m->gleft = ncol;
+        if (m->gleft > cols - GRID_COLS) m->gleft = cols > GRID_COLS ? cols - GRID_COLS : 0;
+        if (m->gleft < 0) m->gleft = 0;
     } else {
         g = m->gsel + dir * LIST_PAGE_STEP;
         if (g < 0) g = 0;
@@ -787,13 +790,12 @@ static void library_page(Model *m, int dir)
         if (g == m->gsel) return;
         game_pick(m, g);
         if (dir > 0) {
-            m->gtop = m->gsel - GAME_ROWS + 1;
+            m->gtop = m->gsel - LIST_PAGE_STEP;
             if (m->gtop < 0) m->gtop = 0;
-        } else {
+        } else
             m->gtop = m->gsel;
-            if (m->gtop > m->ngames - GAME_ROWS)
-                m->gtop = m->ngames > GAME_ROWS ? m->ngames - GAME_ROWS : 0;
-        }
+        if (m->gtop > m->ngames - GAME_ROWS)
+            m->gtop = m->ngames > GAME_ROWS ? m->ngames - GAME_ROWS : 0;
     }
 }
 
@@ -865,7 +867,6 @@ static int handle(Model *m, int act, int arg)
             if (m->ngames <= 0) break;
             m->sort = (m->sort + 1) % SORT_COUNT;
             save_ui_conf(m->grid, m->sort);
-            free_thumbs(m);
             resort_games(m);
             break;
         case ACT_VIEW:
@@ -1210,8 +1211,7 @@ int main(int argc, char **argv)
             dirty = 1;
         }
         if (status_tick(&m)) dirty = 1;
-        /* the direction let go: the picked game's cover on top now */
-        if (!g_rep.code && m.view == V_GAMES && m.ngames > 0 && m.art_game != m.gsel) dirty = 1;
+        if (!g_rep.code && m.view == V_GAMES && m.ngames > 0 && m.art_game != m.gsel) game_art_pick(&m);
     }
     for (i = 0; i < ndev; i++) close(dev[i].fd);
     /* the last sound heard out (a game's chime, B's), then the device let go before the game or the menu takes it */

@@ -13,7 +13,9 @@ enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT, V_UPDATE, V_UPDATED, V_G
 enum { ROW_UPDATES, ROW_ABOUT, ROW_COUNT };
 enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a list: rows on the bottom panel at once */
-#define GAME_ROWS 5
+#define GAME_ROWS 6
+#define LIST_ROW_PITCH 59.0f
+#define LIST_Y0 (LIB_TOP + (LIB_FACE_Y - LIB_TOP - 8.0f - GAME_ROWS * LIST_ROW_PITCH) * 0.5f)
 /* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
 #define GRID_ROWS 3
 #define GRID_COLS 4
