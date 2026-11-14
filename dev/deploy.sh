@@ -40,9 +40,7 @@ one() {
     ssh -i "$KEY" -o IdentitiesOnly=yes -o ConnectTimeout=8 -o BatchMode=yes "root@$ip" '
         set -eu
         A=/data/store/apps/bananads-lan
-        st=$($A/status.sh)
-        echo "$st" | grep -qx "enabled=yes" && $A/apply.sh || true
-        sha256sum $A/bin/bananads
+        sha256sum $A/ui/bananads-lan $A/emu/bananads
         $A/status.sh
     '
 }

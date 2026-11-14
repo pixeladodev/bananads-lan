@@ -451,6 +451,9 @@ static int game_cmp(const void *a, const void *b)
     return strcasecmp(base_of((const char *)a), base_of((const char *)b));
 }
 
+static void stats_add(const char *file, const char *key, int *plays, long *secs, time_t *last);
+static void game_pick(Model *m, int g);
+
 static void game_fav_key(const char *rom, char *dst, int n)
 {
     snprintf(dst, (size_t)n, "nds/%s", base_of(rom));
@@ -580,7 +583,7 @@ static void toggle_favorite(Model *m)
 {
     char key[GAME_PATH + 8], line[GAME_PATH + 16];
     char list[MAX_GAMES][GAME_PATH + 8];
-    int n = 0, found = 0, i;
+    int n = 0, found = 0;
     FILE *f;
     if (m->ngames <= 0) return;
     game_fav_key(m->games[m->gsel], key, (int)sizeof key);
@@ -665,6 +668,8 @@ static void free_thumbs(Model *m)
 /* the ROM's own icon at tile size (box art stays on the top panel) */
 static int game_thumb(const char *rom, int w, int h, PxImage *img)
 {
+    (void)w;
+    (void)h;
     return px_nds_icon(rom, img);
 }
 
