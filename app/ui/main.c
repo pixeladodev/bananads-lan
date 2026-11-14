@@ -350,7 +350,7 @@ static void draw(const Model *m)
 }
 
 enum { ACT_NONE, ACT_UP, ACT_DOWN, ACT_LEFT, ACT_RIGHT, ACT_OK, ACT_BACK, ACT_Y, ACT_MENU, ACT_ROW, ACT_ABOUT, ACT_SORT,
-       ACT_VIEW, ACT_FAV, ACT_RAIL };
+       ACT_VIEW, ACT_FAV, ACT_RAIL, ACT_PAGE_LEFT, ACT_PAGE_RIGHT };
 
 /* Nintendo layout: A is the east button, B the south one, Y the west one */
 static int is_vertical(int code)
@@ -394,6 +394,8 @@ static int key_action(int code, int value)
     case KEY_RIGHT: case BTN_DPAD_RIGHT: return ACT_RIGHT;
     case BTN_EAST: case KEY_ENTER: return ACT_OK;
     case BTN_WEST: return ACT_FAV;
+    case BTN_TL: case KEY_PAGEUP: return ACT_PAGE_LEFT;
+    case BTN_TR: case KEY_PAGEDOWN: return ACT_PAGE_RIGHT;
     case BTN_TL2: return ACT_SORT;
     case BTN_TR2: return ACT_VIEW;
     case BTN_SOUTH: case KEY_BACKSPACE: case KEY_ESC: return ACT_BACK;
@@ -453,6 +455,7 @@ static int game_cmp(const void *a, const void *b)
 
 static void stats_add(const char *file, const char *key, int *plays, long *secs, time_t *last);
 static void game_pick(Model *m, int g);
+static void library_page(Model *m, int dir);
 
 static void game_fav_key(const char *rom, char *dst, int n)
 {
@@ -748,6 +751,48 @@ static void game_pick(Model *m, int g)
     m->gfav = game_is_favorite(m->games[g]);
 }
 
+/* L/R: jump LIB_PAGE_STEP columns or LIST_PAGE_STEP rows; scroll to the page edge with one column/row overlapping */
+static void library_page(Model *m, int dir)
+{
+    int col, row, cols, g, ncol;
+    if (m->ngames <= 0 || m->view != V_GAMES) return;
+    if (m->grid) {
+        col = m->gsel / GRID_ROWS;
+        row = m->gsel % GRID_ROWS;
+        cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
+        ncol = col + dir * LIB_PAGE_STEP;
+        if (ncol < 0) ncol = 0;
+        if (ncol >= cols) ncol = cols - 1;
+        if (ncol == col) return;
+        g = ncol * GRID_ROWS + row;
+        if (g >= m->ngames) g = m->ngames - 1;
+        game_pick(m, g);
+        col = m->gsel / GRID_ROWS;
+        cols = (m->ngames + GRID_ROWS - 1) / GRID_ROWS;
+        if (dir > 0) {
+            m->gleft = col - GRID_COLS + 1;
+            if (m->gleft < 0) m->gleft = 0;
+        } else {
+            m->gleft = col;
+            if (m->gleft > cols - GRID_COLS) m->gleft = cols > GRID_COLS ? cols - GRID_COLS : 0;
+        }
+    } else {
+        g = m->gsel + dir * LIST_PAGE_STEP;
+        if (g < 0) g = 0;
+        if (g >= m->ngames) g = m->ngames - 1;
+        if (g == m->gsel) return;
+        game_pick(m, g);
+        if (dir > 0) {
+            m->gtop = m->gsel - GAME_ROWS + 1;
+            if (m->gtop < 0) m->gtop = 0;
+        } else {
+            m->gtop = m->gsel;
+            if (m->gtop > m->ngames - GAME_ROWS)
+                m->gtop = m->ngames > GAME_ROWS ? m->ngames - GAME_ROWS : 0;
+        }
+    }
+}
+
 /* the library's layout as it was left: ui.conf's view = grid | list (grid when there is none) */
 static void read_ui_conf(int *grid, int *sort)
 {
@@ -828,6 +873,12 @@ static int handle(Model *m, int act, int arg)
             break;
         case ACT_FAV:
             toggle_favorite(m);
+            break;
+        case ACT_PAGE_LEFT:
+            library_page(m, -1);
+            break;
+        case ACT_PAGE_RIGHT:
+            library_page(m, 1);
             break;
         case ACT_RAIL:
             if (arg >= 0 && arg < m->ngames) game_pick(m, arg);

@@ -340,8 +340,8 @@ static void library_top_legend(PxCanvas *c, const Model *m)
     px_bubble(c, 18, y, 604, 42, 0);
     if (m->ngames > 0) {
         int vert = !m->grid;
-        px_triangle(c, 42, cy, 10, vert ? -2 : -1, ink);
-        px_triangle(c, 598, cy, 10, vert ? 2 : 1, ink);
+        px_keycap(c, 34, y + 8, "L");
+        px_triangle(c, 62, cy, 10, vert ? -2 : -1, ink);
         px_keycap(c, 78, y + 8, "L2");
         px_text_fit(c, PX_MEDIUM, 15, 114, y + 12, sort, ink, 0, 168, PX_LEFT);
         add_hit(c, 74, y + 4, 210, 34, HIT_SORT, 0);
@@ -351,10 +351,8 @@ static void library_top_legend(PxCanvas *c, const Model *m)
         px_text_fit(c, PX_MEDIUM, 15, 468, y + 12, view, ink, 0, 90, PX_RIGHT);
         px_keycap(c, 566, y + 8, "R2");
         add_hit(c, 460, y + 4, 130, 34, HIT_VIEW, 0);
-        px_keycap(c, 400, y + 8, "Y");
-        px_text_fit(c, PX_MEDIUM, 15, 452, y + 12, m->gfav ? T("Remove favorite") : T("Add favorite"),
-                    m->gfav ? px.accent.base : ink, 0, 140, PX_LEFT);
-        add_hit(c, 396, y + 4, 200, 34, HIT_Y, 0);
+        px_triangle(c, 578, cy, 10, vert ? 2 : 1, ink);
+        px_keycap(c, 594, y + 8, "R");
     } else {
         snprintf(count, sizeof count, "%s", T("No games"));
         cw = px_text_w(c, PX_MEDIUM, 19, count, 0);
@@ -367,16 +365,20 @@ static void library_top_legend(PxCanvas *c, const Model *m)
 static void library_bottom_faces(PxCanvas *c, const Model *m)
 {
     PxRect r;
-    float y = LIB_FACE_Y;
-    px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r);
+    float y = LIB_FACE_Y, bw, aw, yw;
+    int disfav = m->ngames <= 0;
+    uint32_t fav_rgb = m->gfav ? PX_FAVORITE_RGB : 0;
+    px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r, 0);
     add_face_hit(r, HIT_BACK);
-    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r);
+    bw = px_face_w(c, "B", T("Exit"));
+    px_face(c, 18 + bw + 8, y, PX_LEFT, "START", T("Settings"), 0, &r, 0);
+    add_face_hit(r, HIT_START);
+    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r, 0);
     add_face_hit(r, HIT_OK);
-    {
-        float aw = px_face_w(c, "A", T("Play"));
-        px_face(c, 622 - aw - 12, y, PX_RIGHT, "START", T("Settings"), 0, &r);
-        add_face_hit(r, HIT_START);
-    }
+    aw = px_face_w(c, "A", T("Play"));
+    yw = px_face_w(c, "Y", T("Favorite"));
+    px_face(c, 622 - aw - 8 - yw, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, fav_rgb);
+    add_face_hit(r, HIT_Y);
 }
 
 /* bottom: the library, as a grid scrolled sideways or as a list */
@@ -535,7 +537,7 @@ static void view_about(PxCanvas *c, const Model *m)
     px_text_wrap(c, PX_REGULAR, 16, 40, y,
                  T("An independent app, not part of BananaOS. Built and tested on the RG DS and the RG DS Plus. Free software under the GPLv3."),
                  px.muted, 560, 3, 23);
-    px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r);
+    px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0);
     add_face_hit(r, HIT_BACK);
 }
 
@@ -585,27 +587,27 @@ void view_bottom(PxCanvas *c, const Model *m)
                  done && m->upd.msg[0] ? " " : "", done ? m->upd.msg : "");
         dialog(c, title, sub, NULL);
         if (!done) {
-            px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r);
+            px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0);
             add_face_hit(r, HIT_BACK);
         }
-        px_face(c, 622, 422, PX_RIGHT, "A", done ? T("Restart") : T("Update"), 0, &r);
+        px_face(c, 622, 422, PX_RIGHT, "A", done ? T("Restart") : T("Update"), 0, &r, 0);
         add_face_hit(r, HIT_OK);
     } else if (m->view == V_UNINSTALL) {
         dialog(c, T("Uninstall BananaDS LAN?"), m->err[0] ? m->err : T("Turns it off and deletes this app."), NULL);
-        px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r);
+        px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0);
         add_face_hit(r, HIT_BACK);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Uninstall"), 0, &r);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Uninstall"), 0, &r, 0);
         add_face_hit(r, HIT_OK);
     } else if (m->view == V_NEST) {
         dialog(c, T("One folder too deep."), m->err[0] ? m->err : T("A moves it up one folder."),
                "bananads-lan/bananads-lan");
-        px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r);
+        px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0);
         add_face_hit(r, HIT_BACK);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Move it"), 0, &r);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Move it"), 0, &r, 0);
         add_face_hit(r, HIT_OK);
     } else {
         dialog(c, T("Moved."), T("Open BananaDS LAN again."), NULL);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Exit"), 0, &r);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Exit"), 0, &r, 0);
         add_face_hit(r, HIT_OK);
     }
 }

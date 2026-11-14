@@ -1094,10 +1094,12 @@ float px_face_w(const PxCanvas *c, const char *key, const char *label)
     return 13 + px_keycap_w(c, key) + 9 + px_text_w(c, PX_MEDIUM, g_face_size, label, 0) + 15;
 }
 
-void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit)
+void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit,
+              uint32_t label_rgb)
 {
     Box b;
     float w = px_face_w(c, key, label), kx;
+    uint32_t ink = dis ? px.dim : (label_rgb ? label_rgb : px.ink);
     if (align == PX_RIGHT) x -= w;
     else if (align == PX_CENTER) x -= w / 2;
     memset(&b, 0, sizeof b);
@@ -1108,7 +1110,7 @@ void px_face(PxCanvas *c, float x, float y, int align, const char *key, const ch
     box(c, x, y, w, 40, &b);
     kx = x + 13;
     kx += px_keycap(c, kx, y + 9, key) + 9;
-    px_text(c, PX_MEDIUM, g_face_size, kx, y + 8 + (19 - g_face_size) * 0.5f, label, dis ? px.dim : px.ink, 0);
+    px_text(c, PX_MEDIUM, g_face_size, kx, y + 8 + (19 - g_face_size) * 0.5f, label, ink, 0);
     if (hit) {
         hit->x = px_u(c, x); hit->y = px_u(c, y);
         hit->w = px_u(c, x + w) - hit->x; hit->h = px_u(c, y + 40) - hit->y;
@@ -1127,12 +1129,12 @@ void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hi
     }
     x = 18;
     for (i = 0; i < left && i < n; i++) {
-        px_face(c, x, y, PX_LEFT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL);
+        px_face(c, x, y, PX_LEFT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0);
         x += px_face_w(c, f[i].key, f[i].label) + 8;
     }
     x = 622;
     for (i = n - 1; i >= left; i--) {
-        px_face(c, x, y, PX_RIGHT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL);
+        px_face(c, x, y, PX_RIGHT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0);
         x -= px_face_w(c, f[i].key, f[i].label) + 8;
     }
     g_face_size = 19;

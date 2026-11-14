@@ -24,6 +24,9 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define TILE_IMG_H (TILE_H - 16.0f)
 #define LIB_TOP 56.0f
 #define LIB_FACE_Y 422.0f
+/* L/R page by this many columns (grid) or rows (list), one column/row overlaps the previous page */
+#define LIB_PAGE_STEP 3
+#define LIST_PAGE_STEP (GAME_ROWS - 1)
 #define LIST_IMG 40.0f
 /* the cover on the top panel */
 #define ART_W 220.0f

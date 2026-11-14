@@ -128,7 +128,10 @@ float px_keycap(PxCanvas *c, float x, float y, const char *key);
 float px_keycap_w(const PxCanvas *c, const char *key);
 /* a face button: a key cap and its label, 40 high; align PX_LEFT/RIGHT/CENTER around x; dis greys it.
    Its area in pixels goes to *hit (may be NULL) */
-void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit);
+/* label_rgb 0: normal ink; else the label colour (e.g. BananaOS favourite pink) */
+void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit,
+              uint32_t label_rgb);
+#define PX_FAVORITE_RGB 0xec6fa8u
 float px_face_w(const PxCanvas *c, const char *key, const char *label);
 /* the face row along the bottom (y): the first `left` from the left edge, the rest against the right one, their
    labels made smaller (19 down to 15) until all of them fit; hits[i] (may be NULL) gets each one's area */
