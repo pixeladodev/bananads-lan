@@ -21,28 +21,11 @@ Download `bananads-lan-<version>.zip` from [Releases](../../releases) and extrac
 - the file `BananaDS LAN.sh`
 - `INSTALL.txt` (these same steps, in English and Spanish)
 
-Copy them to the console:
+**Recommended:** copy `Install-BananaDS-LAN.sh` from the release into `store/tiles`, reboot once, open Apps, and run the installer tile.
 
-1. On the console, turn on File sharing in Settings > Network. The address is shown on that screen. Log in as Guest, or with the name and password under Sharing name and password (by default `banana` and `linux`).
-2. Open the shared folder named `banana` from your computer or phone:
-   - Windows: `\\<address>\banana` in File Explorer
-   - macOS: Finder > Go > Connect to Server > `smb://<address>/banana`
-   - Android (CX File Explorer): Network > New location > SMB > `banana`
-   - Or put the microSD card in a reader and open the partition named BANANA
-3. Copy the folder `bananads-lan` into `store/apps`, and the file `BananaDS LAN.sh` into `store/tiles`:
+Or extract the zip and copy the folder `bananads-lan` into `store/apps` and `BananaDS LAN.sh` into `store/tiles`. Copy only those items; do not replace the whole `store` folder. Reboot once and open Apps.
 
-   ```
-   store/
-     apps/
-       bananads-lan/
-     tiles/
-       BananaDS LAN.sh
-   ```
-
-   Copy only those two items. Do not drag or replace the whole `store` folder, or you will lose your other apps.
-4. Reboot the console once. BananaDS LAN now appears in Apps.
-
-If you see `store/apps/bananads-lan/bananads-lan/`, the folder went one level too deep. The app still opens and offers to fix it.
+Full steps (file sharing, SMB, microSD) are in `INSTALL.txt` inside the zip.
 
 ## Use
 

@@ -290,8 +290,8 @@ static int load_state(Model *m)
 {
     char cmd[640], line[512];
     FILE *f;
-    m->supported = m->enabled = m->mounted = 0;
-    m->reason[0] = m->os[0] = m->version[0] = m->model[0] = 0;
+    m->enabled = 0;
+    m->os[0] = m->version[0] = m->model[0] = 0;
     wlan_ip(m->ip, sizeof m->ip);
     snprintf(cmd, sizeof cmd, "sh '%s/status.sh' 2>/dev/null", g_app);
     f = popen(cmd, "r");
@@ -299,10 +299,7 @@ static int load_state(Model *m)
     while (fgets(line, sizeof line, f)) {
         char *nl = strchr(line, '\n');
         if (nl) *nl = 0;
-        if (!strncmp(line, "supported=", 10)) m->supported = !strcmp(line + 10, "yes");
-        else if (!strncmp(line, "enabled=", 8)) m->enabled = !strcmp(line + 8, "yes");
-        else if (!strncmp(line, "mounted=", 8)) m->mounted = !strcmp(line + 8, "yes");
-        else if (!strncmp(line, "reason=", 7)) copy_str(m->reason, sizeof m->reason, line + 7);
+        if (!strncmp(line, "enabled=", 8)) m->enabled = !strcmp(line + 8, "yes");
         else if (!strncmp(line, "os=", 3)) copy_str(m->os, sizeof m->os, line + 3);
         else if (!strncmp(line, "version=", 8)) copy_str(m->version, sizeof m->version, line + 8);
         else if (!strncmp(line, "model=", 6)) copy_str(m->model, sizeof m->model, line + 6);
@@ -418,13 +415,6 @@ static int key_action(int code, int value)
     }
 }
 
-static int app_is_nested(void)
-{
-    const char *tail = "/bananads-lan/bananads-lan";
-    size_t n = strlen(g_app), t = strlen(tail);
-    if (n < t) return 0;
-    return strcmp(g_app + n - t, tail) == 0;
-}
 
 static int app_dir(void)
 {
@@ -873,7 +863,7 @@ static void load_images(Model *m, int quick)
    the app's), and the library scrolled to it */
 static void game_pick(Model *m, int g)
 {
-    char name[GAME_PATH], path[GAME_PATH + 64], emu[640], key[GAME_PATH + 8];
+    char name[GAME_PATH], path[GAME_PATH + 64], key[GAME_PATH + 8];
     struct stat st;
     if (m->ngames <= 0) { m->gsel = m->gtop = m->gleft = 0; m->gsave = -1; m->gsecs = 0; m->gplays = 0; m->glast = 0; return; }
     if (g < 0) g = 0;
@@ -896,8 +886,6 @@ static void game_pick(Model *m, int g)
     m->gplays = 0; m->gsecs = 0; m->glast = 0;
     stats_add(MENU_STATS, key, &m->gplays, &m->gsecs, &m->glast);
     stats_add(APP_STATS, key, &m->gplays, &m->gsecs, &m->glast);
-    snprintf(emu, sizeof emu, "%s/emu/bananads", g_app);
-    m->emu_ok = stat(emu, &st) == 0 && st.st_size > 0;
     m->gfav = game_is_favorite(m->games[g]);
     game_art_pick(m);
 }
@@ -1015,13 +1003,6 @@ static int write_line(const char *path, const char *s)
 /* one action; returns 1 to leave */
 static int handle(Model *m, int act, int arg)
 {
-    if (m->view == V_NEST) {
-        if (act == ACT_OK) {
-            if (run_sh("fix-nest.sh", m->err, (int)sizeof m->err)) { m->view = V_NEST_OK; m->err[0] = 0; }
-        } else if (act == ACT_BACK) return 1;
-        return 0;
-    }
-    if (m->view == V_NEST_OK) return act == ACT_OK || act == ACT_BACK;
     if (m->view == V_GAMES) {
         int g = m->gsel;
         switch (act) {
@@ -1102,13 +1083,13 @@ static int handle(Model *m, int act, int arg)
             break;
         case ACT_ROW:
             if (arg != m->gsel) { game_pick(m, arg); break; }
-            if (!m->emu_ok || upd_installing(&m->upd)) break;
+            if (upd_installing(&m->upd)) break;
             if (!write_line(PLAY_FILE, m->games[m->gsel])) break;
             write_line(LAST_FILE, m->games[m->gsel]);
             g_exit = PLAY_EXIT;
             return 1;
         case ACT_OK:
-            if (m->ngames <= 0 || !m->emu_ok || upd_installing(&m->upd)) break;
+            if (m->ngames <= 0 || upd_installing(&m->upd)) break;
             if (!write_line(PLAY_FILE, m->games[m->gsel])) break;
             write_line(LAST_FILE, m->games[m->gsel]);
             g_exit = PLAY_EXIT;
@@ -1345,7 +1326,6 @@ int main(int argc, char **argv)
     signal(SIGTERM, on_signal);
     signal(SIGINT, on_signal);
     if (!app_dir()) { fprintf(stderr, "bananads-lan: cannot find the app directory\n"); return 1; }
-    if (app_is_nested()) m.view = V_NEST;
     px_settings_read(NULL, &g_settings);
     px_pal_make(&px, &g_settings);
     px_lang_set(g_settings.language, view_tr);
@@ -1365,7 +1345,7 @@ int main(int argc, char **argv)
     m.clock12 = !strcmp(g_settings.clock, "12h");
     m.thumbs = calloc(MAX_GAMES, sizeof *m.thumbs);
     m.tstate = calloc(MAX_GAMES, 1);
-    if (m.view != V_NEST) {
+    {
         char last[GAME_PATH] = "";
         FILE *f = fopen(LAST_FILE, "r");
         if (f) {

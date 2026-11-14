@@ -22,9 +22,7 @@ const PxTr view_tr[] = {
     { "Change", "Cambiar" },
     { "Cancel", "Cancelar" },
     { "Back", "Atrás" },
-    { "Move it", "Moverla" },
     { "Ready", "Listo" },
-    { "Emulator missing", "Falta el emulador" },
     { "This console", "Esta consola" },
     { "Network", "Red" },
     { "DS emulator", "Emulador de DS" },
@@ -50,10 +48,6 @@ const PxTr view_tr[] = {
       "Una app independiente, no es parte de BananaOS. Hecha y probada en la RG DS y la RG DS Plus. Software libre bajo la GPLv3." },
     { "Uninstall BananaDS LAN?", "¿Desinstalar BananaDS LAN?" },
     { "Turns it off and deletes this app.", "Lo apaga y borra esta app." },
-    { "One folder too deep.", "Una carpeta de más." },
-    { "A moves it up one folder.", "A la sube una carpeta." },
-    { "Moved.", "Movida." },
-    { "Open BananaDS LAN again.", "Abre BananaDS LAN de nuevo." },
     { "Play", "Jugar" },
     { "Games", "Juegos" },
     { "%d games", "%d juegos" },
@@ -94,7 +88,6 @@ const PxTr view_tr[] = {
     { "Jul", "jul" }, { "Aug", "ago" }, { "Sep", "sept" }, { "Oct", "oct" }, { "Nov", "nov" }, { "Dec", "dic" },
     { "Put your .nds games in roms/nds on the card (or the second card) and open the app again.",
       "Pon tus juegos .nds en roms/nds de la tarjeta (o de la segunda tarjeta) y abre la app de nuevo." },
-    { "This app's BananaDS is missing: reinstall the app.", "Falta el BananaDS de esta app: vuelve a instalarla." },
     { "v%s is out: START, Updates.", "Ya salió la v%s: START, Actualizaciones." },
     { "Pick the same game on each console and go to its wireless mode: the consoles find each other.",
       "Elige el mismo juego en cada consola y entra a su modo inalámbrico: las consolas se encuentran solas." },
@@ -168,10 +161,10 @@ void view_top(PxCanvas *c, const Model *m)
     /* the state, big: green on, grey off */
     hw = px_badge(c, 42, 106, 52, hero, m->enabled ? PX_BADGE_ON : PX_BADGE_OFF);
     /* beside it: ready, or why not */
-    snprintf(buf, sizeof buf, "%s", m->supported ? T("Ready") : T("Emulator missing"));
+    snprintf(buf, sizeof buf, "%s", T("Ready"));
     cw = px_text_w(c, PX_MEDIUM, 15, buf, PX_UPPER | PX_TRACK) + 24;
     px_chip(c, 42 + hw + 18, 117, cw, 30, 0);
-    px_text(c, PX_MEDIUM, 15, 42 + hw + 30, 122, buf, m->supported ? px.ink : px.warn, PX_UPPER | PX_TRACK);
+    px_text(c, PX_MEDIUM, 15, 42 + hw + 30, 122, buf, px.ink, PX_UPPER | PX_TRACK);
 
     px_line_h(c, 42, 168, 556, 2, px.edge, 70);
 
@@ -182,8 +175,7 @@ void view_top(PxCanvas *c, const Model *m)
     else if (!strncmp(m->ip, "10.42.0.", 8)) snprintf(net, sizeof net, "Direct Link  ·  %s", m->ip);
     else snprintf(net, sizeof net, "Wi-Fi  ·  %s", m->ip);
     stat(c, 42, 254, 260, T("Network"), net, m->ip[0] ? px.ink : px.muted);
-    stat(c, 330, 254, 260, T("DS emulator"), m->supported ? "BananaDS LAN" : T("Emulator missing"),
-         m->supported ? px.ink : px.warn);
+    stat(c, 330, 254, 260, T("DS emulator"), "BananaDS LAN", px.ink);
 
     if (m->upd.state == UPD_AVAILABLE) {
         char avail[64];
@@ -193,8 +185,7 @@ void view_top(PxCanvas *c, const Model *m)
     } else stat(c, 42, 322, 260, T("App version"), m->version[0] ? m->version : "?", px.ink);
 
     px_line_h(c, 42, 380, 556, 2, px.edge, 70);
-    if (m->err[0]) { msg = m->err; msg_rgb = px.warn; }
-    else if (!m->supported && m->reason[0]) { msg = m->reason; msg_rgb = px.warn; }
+      if (m->err[0]) { msg = m->err; msg_rgb = px.warn; }
     else msg = T("Pick the same game on each console and go to its wireless mode: the consoles find each other.");
     px_text_wrap(c, PX_REGULAR, 18, 42, 392, msg, msg_rgb, 556, 2, 24);
 }
@@ -311,8 +302,7 @@ static void games_top(PxCanvas *c, const Model *m)
         px_text_fit(c, PX_REGULAR, 17, 598, 377, buf, m->ip[0] ? px.muted : px.warn, 0, 556 - lw - bw - 40, PX_RIGHT);
     }
     if (m->err[0]) px_text_wrap(c, PX_REGULAR, 17, 42, 414, m->err, px.warn, 556, 2, 22);
-    else if (!m->emu_ok) px_text_wrap(c, PX_REGULAR, 17, 42, 414, T("This app's BananaDS is missing: reinstall the app."), px.warn, 556, 2, 22);
-    else if (m->upd.state == UPD_AVAILABLE) {
+    if (m->upd.state == UPD_AVAILABLE) {
         snprintf(buf, sizeof buf, T("v%s is out: START, Updates."), m->upd.latest);
         px_text_fit(c, PX_MEDIUM, 17, 42, 416, buf, px.accent.base, 0, 556, PX_LEFT);
     } else
@@ -385,7 +375,7 @@ static void library_bottom_faces(PxCanvas *c, const Model *m)
     bw = px_face_w(c, "B", T("Exit"));
     px_face(c, 18 + bw + 8, y, PX_LEFT, "START", T("Settings"), 0, &r, 0, 0);
     add_face_hit(r, HIT_START);
-    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r, 0, 0);
+    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0, &r, 0, 0);
     add_face_hit(r, HIT_OK);
     aw = px_face_w(c, "A", T("Play"));
     px_face(c, 622 - aw - 8, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, 0, fav_on);
@@ -623,17 +613,6 @@ void view_bottom(PxCanvas *c, const Model *m)
         px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0, 0);
         add_face_hit(r, HIT_BACK);
         px_face(c, 622, 422, PX_RIGHT, "A", T("Uninstall"), 0, &r, 0, 0);
-        add_face_hit(r, HIT_OK);
-    } else if (m->view == V_NEST) {
-        dialog(c, T("One folder too deep."), m->err[0] ? m->err : T("A moves it up one folder."),
-               "bananads-lan/bananads-lan");
-        px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0, 0);
-        add_face_hit(r, HIT_BACK);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Move it"), 0, &r, 0, 0);
-        add_face_hit(r, HIT_OK);
-    } else {
-        dialog(c, T("Moved."), T("Open BananaDS LAN again."), NULL);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Exit"), 0, &r, 0, 0);
         add_face_hit(r, HIT_OK);
     }
 }

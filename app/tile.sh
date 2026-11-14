@@ -5,7 +5,7 @@ APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 . "$APP/common.sh"
 mp_clean_junk
 chmod a+x "$APP/ui/bananads-lan" "$APP/lan.sh" "$APP/status.sh" "$APP/run-emu" "$APP/emu/bananads" \
-    "$APP/uninstall.sh" "$APP/fix-nest.sh" "$APP/update.py" "$APP/post-install.sh" "$APP/pre-remove.sh" 2>/dev/null || true
+    "$APP/uninstall.sh" "$APP/update.py" "$APP/post-install.sh" "$APP/pre-remove.sh" 2>/dev/null || true
 # a copy put in by hand over an older version (no post_install ran): what the old one left comes off here
 mp_legacy_cleanup >/dev/null 2>&1 || true
 # the shelf's picture for this tile: banana-ui looks for store/tiles/media/box/<tile name>.png

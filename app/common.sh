@@ -39,7 +39,7 @@ mp_model_id() {
 mp_check() {
     MP_REASON=
     if [ ! -s "$APP/emu/bananads" ]; then
-        MP_REASON="the app's BananaDS (emu/bananads) is missing: install the app again"
+        MP_REASON="install the app again"
         return 1
     fi
     return 0

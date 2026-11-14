@@ -56,14 +56,14 @@ fi
 
 cp "$BIN" "$APP/emu/bananads"
 cp "$ROOT/app/common.sh" "$ROOT/app/lan.sh" "$ROOT/app/status.sh" "$ROOT/app/run-emu" "$ROOT/app/tile.sh" \
-    "$ROOT/app/uninstall.sh" "$ROOT/app/fix-nest.sh" "$ROOT/app/update.py" "$ROOT/app/post-install.sh" "$ROOT/app/pre-remove.sh" \
+    "$ROOT/app/uninstall.sh" "$ROOT/app/update.py" "$ROOT/app/post-install.sh" "$ROOT/app/pre-remove.sh" \
     "$ROOT/app/app.json" "$ROOT/app/manifest" "$APP/"
 cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/BananaDS LAN.sh"
 # the Apps shelf's picture (tile.sh puts it in store/tiles/media/box)
 cp "$ROOT/packaging/store/tile.png" "$APP/tile.png"
 cp "$ROOT/INSTALL.txt" "$STAGE/INSTALL.txt"
 chmod 755 "$APP/emu/bananads" "$APP/ui/bananads-lan" "$APP/lan.sh" "$APP/pre-remove.sh" \
-    "$APP/status.sh" "$APP/run-emu" "$APP/tile.sh" "$APP/uninstall.sh" "$APP/fix-nest.sh" "$APP/update.py" "$APP/post-install.sh" \
+    "$APP/status.sh" "$APP/run-emu" "$APP/tile.sh" "$APP/uninstall.sh" "$APP/update.py" "$APP/post-install.sh" \
     "$STAGE/BananaDS LAN.sh"
 
 ZIP=$ROOT/dist/bananads-lan-$ver.zip

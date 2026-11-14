@@ -12,9 +12,7 @@ static Model base(void)
 {
     Model m;
     memset(&m, 0, sizeof m);
-    m.supported = 1;
     m.enabled = 1;
-    m.mounted = 1;
     snprintf(m.os, sizeof m.os, "0.5.3.4");
     snprintf(m.version, sizeof m.version, "0.4.0");
     snprintf(m.model, sizeof m.model, "rgds_plus");
@@ -126,13 +124,6 @@ int main(int argc, char **argv)
     m.enabled = 0;
     ok &= shot(dir, "off", 640, 480, "dark", "yellow", "es", &m);
     m = base();
-    m.supported = 0;
-    m.enabled = 0;
-    snprintf(m.os, sizeof m.os, "0.5.4");
-    snprintf(m.reason, sizeof m.reason, "the app's BananaDS (emu/bananads) is missing: install the app again");
-    m.cursor = ROW_UPDATES;
-    ok &= shot(dir, "emu-missing", 640, 480, "dark", "blue", "en", &m);
-    m = base();
     m.view = V_UNINSTALL;
     ok &= shot(dir, "uninstall", 1024, 768, "dark", "yellow", "es", &m);
     m = base();
@@ -197,7 +188,6 @@ int main(int argc, char **argv)
         m.view = V_GAMES;
         m.games = games;
         m.ngames = 10;
-        m.emu_ok = 1;
         m.grid = 1;
         m.gsel = 2;
         m.gsave = 262144;
@@ -230,7 +220,6 @@ int main(int argc, char **argv)
         m.view = V_GAMES;
         m.games = games;
         m.ngames = 10;
-        m.emu_ok = 1;
         m.grid = 0;
         m.gsel = 6;
         m.gtop = 3;
@@ -252,9 +241,6 @@ int main(int argc, char **argv)
         m.ngames = 0;
         ok &= shot(dir, "library-empty", 640, 480, "dark", "yellow", "es", &m);
     }
-    m = base();
-    m.view = V_NEST;
-    ok &= shot(dir, "nest", 640, 480, "light", "green", "en", &m);
     px_fonts_free();
     return ok ? 0 : 1;
 }

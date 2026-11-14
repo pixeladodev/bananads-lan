@@ -38,7 +38,7 @@ mkdir -p "$APPS" "$TILES"
 cp -a "$WORK/$APP" "$DEST"
 cp "$WORK/$TILE" "$TILES/$TILE"
 chmod a+x "$DEST/tile.sh" "$DEST/lan.sh" "$DEST/status.sh" "$DEST/run-emu" "$DEST/uninstall.sh" \
-    "$DEST/fix-nest.sh" "$DEST/update.py" "$DEST/post-install.sh" "$DEST/pre-remove.sh" \
+    "$DEST/update.py" "$DEST/post-install.sh" "$DEST/pre-remove.sh" \
     "$DEST/ui/bananads-lan" "$DEST/emu/bananads" 2>/dev/null || true
 [ -f "$DEST/post-install.sh" ] && sh "$DEST/post-install.sh"
 if [ -f "$DEST/tile.png" ]; then

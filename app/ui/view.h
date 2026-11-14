@@ -9,7 +9,7 @@
 #include <time.h>
 
 /* V_GAMES, the library, is where the app opens; V_MAIN is its settings (START) */
-enum { V_MAIN, V_UNINSTALL, V_NEST, V_NEST_OK, V_ABOUT, V_UPDATE, V_UPDATED, V_GAMES };
+enum { V_MAIN, V_UNINSTALL, V_ABOUT, V_UPDATE, V_UPDATED, V_GAMES };
 enum { ROW_UPDATES, ROW_ABOUT, ROW_COUNT };
 enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a list: rows on the bottom panel at once */
@@ -51,8 +51,8 @@ enum {
 };
 
 typedef struct {
-    int supported, enabled, mounted;
-    char reason[240], os[32], version[32], model[32];
+    int enabled;
+    char os[32], version[32], model[32];
     char ip[48];                 /* wlan0's IPv4 address, empty without one */
     char err[240];               /* the last script's complaint */
     int view, cursor;
@@ -77,7 +77,6 @@ typedef struct {
     int gplays;
     time_t glast;
     int clock12;                 /* settings.conf's clock = 12h */
-    int emu_ok;                  /* the app's own BananaDS (emu/bananads) is there */
     int from_games;              /* About opened from the library: B goes back there */
 } Model;
 
