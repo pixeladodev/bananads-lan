@@ -64,6 +64,7 @@ static int g_exit;                /* UPD_RESTART after an update: tile.sh opens 
 #define APP_STATS DATA_DIR "/playstats.tsv"
 #define MENU_STATS "/data/banana/playstats.tsv"
 #define FAVORITES_FILE "/data/banana/favorites.txt"
+#define GAME_TITLES_FILE "/data/banana/game-titles.tsv"
 
 static void planes_upright(void)
 {
@@ -461,9 +462,118 @@ static const char *base_of(const char *p)
     return b ? b + 1 : p;
 }
 
+#define MAX_TITLE_KEYS 4096
+#define SORT_KEY_LEN 256
+static char g_titles_key[MAX_TITLE_KEYS][GAME_PATH + 16];
+static char g_titles_name[MAX_TITLE_KEYS][SORT_KEY_LEN];
+static char g_titles_sort[MAX_TITLE_KEYS][SORT_KEY_LEN];
+static int g_titles_n;
+static char g_sort_a[SORT_KEY_LEN], g_sort_b[SORT_KEY_LEN];
+
+static void trim_buf(char *s)
+{
+    char *a = s, *e;
+    while (*a == ' ' || *a == '\t') a++;
+    if (a != s) memmove(s, a, strlen(a) + 1);
+    e = s + strlen(s);
+    while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) *--e = 0;
+}
+
+/* banana-ui Library::cleanTitle: underscores to space, drop a trailing (…) or […] */
+static void clean_title(char *t)
+{
+    char keep[SORT_KEY_LEN];
+    char *s = t, *r = t;
+    copy_str(keep, (int)sizeof keep, t);
+    for (; *s; s++) *r++ = *s == '_' ? ' ' : *s;
+    *r = 0;
+    trim_buf(t);
+    for (;;) {
+        size_t ln = strlen(t);
+        if (ln < 3) break;
+        {
+            char end = t[ln - 1], open = end == ')' ? '(' : (end == ']' ? '[' : 0);
+            char *at;
+            if (!open) break;
+            at = strrchr(t, open);
+            if (!at || at == t) break;
+            *at = 0;
+            trim_buf(t);
+            if (!t[0]) break;
+        }
+    }
+    if (!t[0]) copy_str(t, SORT_KEY_LEN, keep);
+}
+
+static void strlower(char *s)
+{
+    for (; *s; s++) *s = (char)tolower((unsigned char)*s);
+}
+
+static void game_banana_key(const char *rom, char *dst, int n);
+
+static void load_game_titles(void)
+{
+    char line[768];
+    FILE *f;
+    g_titles_n = 0;
+    f = fopen(GAME_TITLES_FILE, "r");
+    if (!f) return;
+    while (fgets(line, sizeof line, f) && g_titles_n < MAX_TITLE_KEYS) {
+        char *t1, *t2;
+        line[strcspn(line, "\r\n")] = 0;
+        if (!line[0]) continue;
+        t1 = strchr(line, '\t');
+        if (!t1) continue;
+        *t1++ = 0;
+        t2 = strchr(t1, '\t');
+        if (t2) *t2++ = 0;
+        copy_str(g_titles_key[g_titles_n], (int)sizeof g_titles_key[0], line);
+        copy_str(g_titles_name[g_titles_n], (int)sizeof g_titles_name[0], t1);
+        if (t2)
+            copy_str(g_titles_sort[g_titles_n], (int)sizeof g_titles_sort[0], t2);
+        else
+            g_titles_sort[g_titles_n][0] = 0;
+        g_titles_n++;
+    }
+    fclose(f);
+}
+
+static void title_for_rom(const char *rom, char *title, int tn, char *sort, int sn)
+{
+    char key[GAME_PATH + 16];
+    int i;
+    title[0] = sort[0] = 0;
+    view_game_name(rom, title, tn);
+    clean_title(title);
+    game_banana_key(rom, key, (int)sizeof key);
+    for (i = 0; i < g_titles_n; i++) {
+        if (strcmp(g_titles_key[i], key)) continue;
+        if (g_titles_name[i][0]) copy_str(title, tn, g_titles_name[i]);
+        if (g_titles_sort[i][0]) copy_str(sort, sn, g_titles_sort[i]);
+        break;
+    }
+}
+
+/* Library::sortKey: lower(sort title if set, else title), then lexicographic strcmp */
+static void game_sort_key(const char *rom, char *dst, int n)
+{
+    char title[SORT_KEY_LEN], sort[SORT_KEY_LEN];
+    title_for_rom(rom, title, (int)sizeof title, sort, (int)sizeof sort);
+    if (sort[0]) {
+        copy_str(dst, n, sort);
+        strlower(dst);
+        return;
+    }
+    copy_str(dst, n, title);
+    strlower(dst);
+}
+
 static int game_cmp(const void *a, const void *b)
 {
-    return strcasecmp(base_of((const char *)a), base_of((const char *)b));
+    game_sort_key((const char *)a, g_sort_a, (int)sizeof g_sort_a);
+    game_sort_key((const char *)b, g_sort_b, (int)sizeof g_sort_b);
+    return strcmp(g_sort_a, g_sort_b);
 }
 
 static void stats_add(const char *file, const char *key, int *plays, long *secs, time_t *last);
@@ -551,6 +661,7 @@ static void resort_games(Model *m)
     int sel = m->gsel, i;
     char key[GAME_PATH + 8];
     const char *ptrs[MAX_GAMES];
+    load_game_titles();
     memset(&g_sort_ctx, 0, sizeof g_sort_ctx);
     g_sort_ctx.sort = m->sort;
     g_sort_ctx.ngames = m->ngames;
