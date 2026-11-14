@@ -348,11 +348,25 @@ static void library_top_legend(PxCanvas *c, const Model *m)
         snprintf(count, sizeof count, "%02d / %02d", m->gsel + 1, m->ngames);
         cw = px_text_w(c, PX_MEDIUM, 19, count, 0);
         px_text(c, PX_MEDIUM, 19, mid - cw / 2, y + 11, count, px.muted, 0);
-        px_text_fit(c, PX_MEDIUM, 15, 468, y + 12, view, ink, 0, 90, PX_RIGHT);
-        px_keycap(c, 566, y + 8, "R2");
-        add_hit(c, 460, y + 4, 130, 34, HIT_VIEW, 0);
-        px_triangle(c, 578, cy, 10, vert ? 2 : 1, ink);
-        px_keycap(c, 594, y + 8, "R");
+        {
+            float x, vw, kw, hx0;
+            x = 614;
+            kw = px_keycap_w(c, "R");
+            x -= kw;
+            px_keycap(c, x, y + 8, "R");
+            x -= 8;
+            px_triangle(c, x - 5, cy, 10, vert ? 2 : 1, ink);
+            x -= 16;
+            kw = px_keycap_w(c, "R2");
+            x -= kw;
+            px_keycap(c, x, y + 8, "R2");
+            x -= 8;
+            vw = px_text_w(c, PX_MEDIUM, 15, view, 0);
+            hx0 = x - vw - 4;
+            x -= vw;
+            px_text(c, PX_MEDIUM, 15, x, y + 12, view, ink, 0);
+            add_hit(c, hx0, y + 4, 614 - hx0, 34, HIT_VIEW, 0);
+        }
     } else {
         snprintf(count, sizeof count, "%s", T("No games"));
         cw = px_text_w(c, PX_MEDIUM, 19, count, 0);
@@ -365,7 +379,7 @@ static void library_top_legend(PxCanvas *c, const Model *m)
 static void library_bottom_faces(PxCanvas *c, const Model *m)
 {
     PxRect r;
-    float y = LIB_FACE_Y, bw, aw, yw;
+    float y = LIB_FACE_Y, bw, aw;
     int disfav = m->ngames <= 0;
     uint32_t fav_rgb = m->gfav ? PX_FAVORITE_RGB : 0;
     px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r, 0);
@@ -376,8 +390,7 @@ static void library_bottom_faces(PxCanvas *c, const Model *m)
     px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r, 0);
     add_face_hit(r, HIT_OK);
     aw = px_face_w(c, "A", T("Play"));
-    yw = px_face_w(c, "Y", T("Favorite"));
-    px_face(c, 622 - aw - 8 - yw, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, fav_rgb);
+    px_face(c, 622 - aw - 8, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, fav_rgb);
     add_face_hit(r, HIT_Y);
 }
 
@@ -565,7 +578,7 @@ void view_bottom(PxCanvas *c, const Model *m)
         f[1].key = "Y"; f[1].label = T("Uninstall"); f[1].dis = inst;
         f[2].key = "A"; f[2].label = m->cursor == ROW_UPDATES ? upd_action(&m->upd) : T("Open");
         f[2].dis = inst || (m->cursor == ROW_UPDATES && upd_running(&m->upd));
-        px_faces(c, 422, 3, 1, f, hr);
+        px_faces(c, 422, 3, 2, f, hr);
         add_face_hit(hr[0], HIT_BACK);
         add_face_hit(hr[1], HIT_Y);
         add_face_hit(hr[2], HIT_OK);

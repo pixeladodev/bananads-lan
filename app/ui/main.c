@@ -539,14 +539,18 @@ static void resort_games(Model *m)
             g_sort_ctx.recent[i] = lt;
         }
     }
+    if (m->ngames > 0 && sel >= 0 && sel < m->ngames)
+        copy_str(last, (int)sizeof last, m->games[sel]);
+    else
+        last[0] = 0;
     if (m->sort == SORT_AZ) qsort(m->games, (size_t)m->ngames, GAME_PATH, game_cmp);
     else {
+        char sorted[MAX_GAMES][GAME_PATH];
         for (i = 0; i < m->ngames; i++) ptrs[i] = m->games[i];
         qsort(ptrs, (size_t)m->ngames, sizeof ptrs[0], sort_cmp);
-        for (i = 0; i < m->ngames; i++) memcpy(m->games[i], ptrs[i], GAME_PATH);
+        for (i = 0; i < m->ngames; i++) memcpy(sorted[i], ptrs[i], GAME_PATH);
+        for (i = 0; i < m->ngames; i++) memcpy(m->games[i], sorted[i], GAME_PATH);
     }
-    if (sel < m->ngames) copy_str(last, (int)sizeof last, m->games[sel]);
-    else last[0] = 0;
     if (last[0]) {
         int i;
         for (i = 0; i < m->ngames; i++)

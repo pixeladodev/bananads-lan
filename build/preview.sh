@@ -21,6 +21,7 @@ fi
 export PIXEL_UI_THEMES_IMAGE="${PIXEL_UI_THEMES_IMAGE:-/usr/share/banana/themes}"
 export BANANA_THEMES="${BANANA_THEMES:-$ROOT/dist/no-card-themes}"
 mkdir -p "$OUT" "$ROOT/dist"
+export PREVIEW_STAMP="${PREVIEW_STAMP:-$(TZ=America/Lima date +%Y%m%d-%H%M)}"
 UI=$ROOT/app/ui
 $CC -O2 -Wall -Wextra -I "$UI/third_party" -o "$ROOT/dist/preview-ui" \
     "$UI/preview.c" "$UI/view.c" "$UI/pixel.c" "$UI/updater.c" "$UI/pixel_png.c" "$UI/pixel_image.c" "$UI/stb_impl.c" -lm
