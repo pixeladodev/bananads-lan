@@ -32,6 +32,7 @@ typedef struct {
     uint32_t chip_band, chip_body, rail_bg, rule, brand_bg;
     uint32_t kbd_bg, kbd_ink;
     uint32_t red, green, warn, sheet;   /* warn: red text that reads on the sheet */
+    uint32_t fav_border, fav_band, fav_body, fav_ink; /* RndsUI face1 / Fav button */
     uint32_t pick, pick_band, pick_low, pick_edge, on_pick, on_pick_sub;
     uint32_t dither_rgb;
     int dither_a, dither_b;     /* alpha of the 4x4 tile's two dots, 0-255 */
@@ -71,6 +72,9 @@ typedef struct { int code; long since, last; } PxRepeat;
 void px_repeat_key(PxRepeat *r, int code, int value, int repeatable, long now_ms);
 int px_repeat_due(PxRepeat *r, long now_ms);
 int px_repeat_wait(const PxRepeat *r, long now_ms);
+/* L/R page repeat: same as repeat, gaps ~145 ms / 75 ms (slightly slower than the list step) */
+int px_repeat_due_page(PxRepeat *r, long now_ms);
+int px_repeat_wait_page(const PxRepeat *r, long now_ms);
 
 /* fonts: Pixelify Sans Regular and Medium from dir (NULL: PIXEL_UI_FONTS, else /usr/share/banana/rnds/fonts) */
 int px_fonts_load(const char *dir);
@@ -130,8 +134,8 @@ float px_keycap_w(const PxCanvas *c, const char *key);
    Its area in pixels goes to *hit (may be NULL) */
 /* label_rgb 0: normal ink; else the label colour (e.g. BananaOS favourite pink) */
 void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit,
-              uint32_t label_rgb);
-#define PX_FAVORITE_RGB 0xec6fa8u
+              uint32_t label_rgb, int fav_btn);
+void px_fav_heart(PxCanvas *c, float x, float y, float s);
 float px_face_w(const PxCanvas *c, const char *key, const char *label);
 /* the face row along the bottom (y): the first `left` from the left edge, the rest against the right one, their
    labels made smaller (19 down to 15) until all of them fit; hits[i] (may be NULL) gets each one's area */

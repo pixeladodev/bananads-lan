@@ -379,16 +379,16 @@ static void library_bottom_faces(PxCanvas *c, const Model *m)
     PxRect r;
     float y = LIB_FACE_Y, bw, aw;
     int disfav = m->ngames <= 0;
-    uint32_t fav_rgb = m->gfav ? PX_FAVORITE_RGB : 0;
-    px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r, 0);
+    int fav_on = m->gfav && !disfav;
+    px_face(c, 18, y, PX_LEFT, "B", T("Exit"), 0, &r, 0, 0);
     add_face_hit(r, HIT_BACK);
     bw = px_face_w(c, "B", T("Exit"));
-    px_face(c, 18 + bw + 8, y, PX_LEFT, "START", T("Settings"), 0, &r, 0);
+    px_face(c, 18 + bw + 8, y, PX_LEFT, "START", T("Settings"), 0, &r, 0, 0);
     add_face_hit(r, HIT_START);
-    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r, 0);
+    px_face(c, 622, y, PX_RIGHT, "A", T("Play"), m->ngames <= 0 || !m->emu_ok, &r, 0, 0);
     add_face_hit(r, HIT_OK);
     aw = px_face_w(c, "A", T("Play"));
-    px_face(c, 622 - aw - 8, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, fav_rgb);
+    px_face(c, 622 - aw - 8, y, PX_RIGHT, "Y", T("Favorite"), disfav, &r, 0, fav_on);
     add_face_hit(r, HIT_Y);
 }
 
@@ -421,6 +421,7 @@ static void games_bottom(PxCanvas *c, const Model *m)
             px_card(c, x, y, TILE_W, TILE_H, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H,
                        name, sel);
+            if (game_is_favorite(m->games[g])) px_fav_heart(c, x + TILE_W - 16, y + 4, 10);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
         }
         grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP);
@@ -447,6 +448,7 @@ static void games_bottom(PxCanvas *c, const Model *m)
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name,
                        sel);
             px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
+            if (game_is_favorite(m->games[g])) px_fav_heart(c, 590, y + 4, 10);
             add_hit(c, 18, y, 588, 54, HIT_ROW, g);
         }
         if (m->ngames > GAME_ROWS) {
@@ -548,7 +550,7 @@ static void view_about(PxCanvas *c, const Model *m)
     px_text_wrap(c, PX_REGULAR, 16, 40, y,
                  T("An independent app, not part of BananaOS. Built and tested on the RG DS and the RG DS Plus. Free software under the GPLv3."),
                  px.muted, 560, 3, 23);
-    px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0);
+    px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0, 0);
     add_face_hit(r, HIT_BACK);
 }
 
@@ -598,27 +600,27 @@ void view_bottom(PxCanvas *c, const Model *m)
                  done && m->upd.msg[0] ? " " : "", done ? m->upd.msg : "");
         dialog(c, title, sub, NULL);
         if (!done) {
-            px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0);
+            px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0, 0);
             add_face_hit(r, HIT_BACK);
         }
-        px_face(c, 622, 422, PX_RIGHT, "A", done ? T("Restart") : T("Update"), 0, &r, 0);
+        px_face(c, 622, 422, PX_RIGHT, "A", done ? T("Restart") : T("Update"), 0, &r, 0, 0);
         add_face_hit(r, HIT_OK);
     } else if (m->view == V_UNINSTALL) {
         dialog(c, T("Uninstall BananaDS LAN?"), m->err[0] ? m->err : T("Turns it off and deletes this app."), NULL);
-        px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0);
+        px_face(c, 18, 422, PX_LEFT, "B", T("Cancel"), 0, &r, 0, 0);
         add_face_hit(r, HIT_BACK);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Uninstall"), 0, &r, 0);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Uninstall"), 0, &r, 0, 0);
         add_face_hit(r, HIT_OK);
     } else if (m->view == V_NEST) {
         dialog(c, T("One folder too deep."), m->err[0] ? m->err : T("A moves it up one folder."),
                "bananads-lan/bananads-lan");
-        px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0);
+        px_face(c, 18, 422, PX_LEFT, "B", T("Back"), 0, &r, 0, 0);
         add_face_hit(r, HIT_BACK);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Move it"), 0, &r, 0);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Move it"), 0, &r, 0, 0);
         add_face_hit(r, HIT_OK);
     } else {
         dialog(c, T("Moved."), T("Open BananaDS LAN again."), NULL);
-        px_face(c, 622, 422, PX_RIGHT, "A", T("Exit"), 0, &r, 0);
+        px_face(c, 622, 422, PX_RIGHT, "A", T("Exit"), 0, &r, 0, 0);
         add_face_hit(r, HIT_OK);
     }
 }

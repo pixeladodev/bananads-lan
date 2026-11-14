@@ -106,6 +106,8 @@ static int shot(const char *dir, const char *name, int w, int h, const char *the
     return ok;
 }
 
+int game_is_favorite(const char *rom) { (void)rom; return 0; }
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : ".";

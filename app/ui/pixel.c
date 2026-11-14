@@ -358,6 +358,35 @@ int px_repeat_wait(const PxRepeat *r, long now_ms)
     return w < 0 ? 0 : (int)w;
 }
 
+static long page_gap(const PxRepeat *r, long now_ms) { return now_ms - r->since > 1500 ? 75 : 145; }
+
+int px_repeat_due_page(PxRepeat *r, long now_ms)
+{
+    if (!r->code || now_ms - r->since < 400 || now_ms - r->last < page_gap(r, now_ms)) return 0;
+    r->last = now_ms;
+    return r->code;
+}
+
+int px_repeat_wait_page(const PxRepeat *r, long now_ms)
+{
+    long w;
+    if (!r->code) return -1;
+    if (now_ms - r->since < 400) return (int)(400 - (now_ms - r->since));
+    w = r->last + page_gap(r, now_ms) - now_ms;
+    return w < 0 ? 0 : (int)w;
+}
+
+void px_fav_heart(PxCanvas *c, float x, float y, float s)
+{
+    uint32_t fill = px.red, rim = 0xffffff;
+    float r = s * 0.28f;
+    px_round(c, x, y, s, s, 2, rim, 255);
+    px_round(c, x + 1, y + 1, s - 2, s - 2, 2, fill, 255);
+    px_round(c, x + s * 0.18f, y + s * 0.22f, r, r, r, rim, 255);
+    px_round(c, x + s * 0.52f, y + s * 0.22f, r, r, r, rim, 255);
+    px_triangle(c, x + s * 0.5f, y + s * 0.88f, (int)(s * 0.42f), 2, rim);
+}
+
 void px_pal_make(PxPal *p, const PxSettings *st)
 {
     size_t i;
@@ -405,6 +434,7 @@ void px_pal_make(PxPal *p, const PxSettings *st)
         p->chip_band = 0x2e2b33; p->chip_body = 0x121117; p->rail_bg = 0x100f14; p->rule = 0x45403d;
         p->brand_bg = 0x262219; p->kbd_bg = 0xf1ede2; p->kbd_ink = 0x17161c;
         p->red = 0xff3b4a;
+        p->fav_border = p->red; p->fav_band = 0x5a2430; p->fav_body = 0x2a1016; p->fav_ink = 0xff8a96;
         p->dither_rgb = 0xffffff; p->dither_a = 36; p->dither_b = 18;
         sheet_base = 0x15141a; sheet_mix = 0.34f;
         p->pick_edge = 0xffffff;
@@ -416,6 +446,7 @@ void px_pal_make(PxPal *p, const PxSettings *st)
         p->chip_band = 0xffffff; p->chip_body = 0xf6f2ea; p->rail_bg = 0xe6dfd0; p->rule = 0xd6cfc0;
         p->brand_bg = 0x262219; p->kbd_bg = 0x3a342c; p->kbd_ink = 0xf2f6fa;
         p->red = 0xe23b4a;
+        p->fav_border = p->red; p->fav_band = 0xfff2f3; p->fav_body = 0xffdfe3; p->fav_ink = 0xc8283a;
         p->dither_rgb = 0x3a2e14; p->dither_a = 18; p->dither_b = 9;
         sheet_base = 0xfdfbf6; sheet_mix = 0.3f;
         p->pick_edge = a.dark;
@@ -1095,16 +1126,28 @@ float px_face_w(const PxCanvas *c, const char *key, const char *label)
 }
 
 void px_face(PxCanvas *c, float x, float y, int align, const char *key, const char *label, int dis, PxRect *hit,
-              uint32_t label_rgb)
+              uint32_t label_rgb, int fav_btn)
 {
     Box b;
     float w = px_face_w(c, key, label), kx;
-    uint32_t ink = dis ? px.dim : (label_rgb ? label_rgb : px.ink);
+    uint32_t ink;
     if (align == PX_RIGHT) x -= w;
     else if (align == PX_CENTER) x -= w / 2;
     memset(&b, 0, sizeof b);
-    b.r = 10; b.fill = px.bubble_body; b.border = dis ? px_mix(px.line, px.screen_bg, 0.45f) : px.edge; b.border_w = 3;
-    b.band_top = px.bubble_band; b.band_top_h = 8;
+    b.r = 10;
+    if (fav_btn && !dis) {
+        b.fill = px.fav_body;
+        b.border = px.fav_border;
+        b.band_top = px.fav_band;
+        ink = px.fav_ink;
+    } else {
+        b.fill = px.bubble_body;
+        b.border = dis ? px_mix(px.line, px.screen_bg, 0.45f) : px.edge;
+        b.band_top = px.bubble_band;
+        ink = dis ? px.dim : (label_rgb ? label_rgb : px.ink);
+    }
+    b.border_w = 3;
+    b.band_top_h = 8;
     b.inset_bot = px.panel_low; b.inset_bot_h = 4; b.inset_bot_a = 255;
     b.shadow = 0x000000; b.sdx = 3; b.sdy = 3; b.shadow_a = px.light ? 40 : 217;
     box(c, x, y, w, 40, &b);
@@ -1129,12 +1172,12 @@ void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hi
     }
     x = 18;
     for (i = 0; i < left && i < n; i++) {
-        px_face(c, x, y, PX_LEFT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0);
+        px_face(c, x, y, PX_LEFT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0, 0);
         x += px_face_w(c, f[i].key, f[i].label) + 8;
     }
     x = 622;
     for (i = n - 1; i >= left; i--) {
-        px_face(c, x, y, PX_RIGHT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0);
+        px_face(c, x, y, PX_RIGHT, f[i].key, f[i].label, f[i].dis, hits ? &hits[i] : NULL, 0, 0);
         x -= px_face_w(c, f[i].key, f[i].label) + 8;
     }
     g_face_size = 19;

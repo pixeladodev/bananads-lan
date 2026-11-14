@@ -35,11 +35,14 @@ record_play() {
     key="nds/$(basename "$1")"
     now=$(date +%s)
     [ -f "$STATS_DIR/playstats.tsv" ] || : > "$STATS_DIR/playstats.tsv"
-    awk -F '\t' -v OFS='\t' -v k="$key" -v s="$secs" -v t="$now" '
-        $1 == k { $2 += 1; $3 += s; $4 = t; found = 1 } { print }
-        END { if (!found) print k, 1, s, t }' "$STATS_DIR/playstats.tsv" > "$STATS_DIR/playstats.tsv.new" 2>/dev/null \
-        && mv -f "$STATS_DIR/playstats.tsv.new" "$STATS_DIR/playstats.tsv"
-    rm -f "$STATS_DIR/playstats.tsv.new"
+    for stats in "$STATS_DIR/playstats.tsv" /data/banana/playstats.tsv; do
+        [ -f "$stats" ] || : > "$stats" 2>/dev/null || continue
+        awk -F '\t' -v OFS='\t' -v k="$key" -v s="$secs" -v t="$now" '
+            $1 == k { $2 += 1; $3 += s; $4 = t; found = 1 } { print }
+            END { if (!found) print k, 1, s, t }' "$stats" > "${stats}.new" 2>/dev/null \
+            && mv -f "${stats}.new" "$stats"
+        rm -f "${stats}.new"
+    done
     sync 2>/dev/null
     return 0
 }

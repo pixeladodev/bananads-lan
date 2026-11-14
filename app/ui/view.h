@@ -18,8 +18,8 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define LIST_Y0 (LIB_TOP + (LIB_FACE_Y - LIB_TOP - 8.0f - GAME_ROWS * LIST_ROW_PITCH) * 0.5f)
 /* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
 #define GRID_ROWS 3
-#define GRID_COLS 4
-#define TILE_W 145.0f
+#define GRID_COLS 5
+#define TILE_W 114.0f
 #define TILE_H 108.0f
 #define TILE_GAP 8.0f
 #define TILE_IMG_W (TILE_W - 16.0f)
@@ -27,7 +27,7 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define LIB_TOP 56.0f
 #define LIB_FACE_Y 422.0f
 /* L/R page by this many columns (grid) or rows (list), one column/row overlaps the previous page */
-#define LIB_PAGE_STEP 3
+#define LIB_PAGE_STEP (GRID_COLS - 1)
 #define LIST_PAGE_STEP (GAME_ROWS - 1)
 #define LIST_IMG 40.0f
 /* the cover on the top panel */
@@ -81,5 +81,6 @@ void view_bottom(PxCanvas *c, const Model *m);
 int view_row_enabled(const Model *m, int row);
 /* a game's name as the list shows it: its file name without the folder and the extension */
 void view_game_name(const char *path, char *dst, int n);
+int game_is_favorite(const char *rom);
 
 #endif

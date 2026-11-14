@@ -44,6 +44,7 @@ static uint32_t *g_buf[2];
 
 static char g_app[512];
 static PxRepeat g_rep;            /* the direction held down */
+static PxRepeat g_page;           /* L/R page held */
 static int g_rail_drag;           /* the finger is on the library's horizontal rail */
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 /* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
@@ -370,6 +371,12 @@ static int repeats(int code, const Model *m)
     return is_vertical(code) || (is_horizontal(code) && m->view == V_GAMES);
 }
 
+static int page_repeats(int code, const Model *m)
+{
+    if (m->view != V_GAMES || m->ngames <= 0) return 0;
+    return code == BTN_TL || code == BTN_TR || code == KEY_PAGEUP || code == KEY_PAGEDOWN;
+}
+
 /* what the menu plays for an action, as banana-ui does: scroll for a move, select for A (or a value changed, or a
    page opened), back for B; ready when a game starts. NULL: nothing changed, no sound */
 typedef struct { int view, cursor, gsel, enabled, grid; } Snap;
@@ -562,7 +569,7 @@ static void resort_games(Model *m)
     game_pick(m, sel);
 }
 
-static int game_is_favorite(const char *rom)
+int game_is_favorite(const char *rom)
 {
     char line[GAME_PATH + 16], key[GAME_PATH + 8];
     FILE *f;
@@ -1125,8 +1132,11 @@ int main(int argc, char **argv)
         dirty = 0;
         for (i = 0; i < ndev; i++) { pf[i].fd = dev[i].fd; pf[i].events = POLLIN; pf[i].revents = 0; }
         {
-            int t = busy ? 200 : 1000, w = px_repeat_wait(&g_rep, ticks());
+            int t = busy ? 200 : 1000, w, wp;
+            w = px_repeat_wait(&g_rep, ticks());
+            wp = px_repeat_wait_page(&g_page, ticks());
             if (w >= 0 && w < t) t = w;
+            if (wp >= 0 && wp < t) t = wp;
             r = poll(pf, (nfds_t)ndev, t);
         }
         if (r < 0) { if (errno == EINTR) continue; break; }
@@ -1145,7 +1155,9 @@ int main(int argc, char **argv)
             if (status_tick(&m)) dirty = 1;
             {
                 int k = px_repeat_due(&g_rep, ticks());
+                int kp = px_repeat_due_page(&g_page, ticks());
                 if (k) act = key_action(k, 1);
+                else if (kp) act = key_action(kp, 1);
             }
             if (act != ACT_NONE) {
                 Snap before = snap(&m);
@@ -1193,6 +1205,7 @@ int main(int argc, char **argv)
                     int a;
                     if (ev.value == 2) continue;     /* (the kernel's own repeat: px_repeat times it instead) */
                     px_repeat_key(&g_rep, ev.code, ev.value, repeats(ev.code, &m), ticks());
+                    px_repeat_key(&g_page, ev.code, ev.value, page_repeats(ev.code, &m), ticks());
                     a = key_action(ev.code, ev.value);
                     if (a) act = a;
                 }
@@ -1200,7 +1213,9 @@ int main(int argc, char **argv)
         }
         if (act == ACT_NONE) {
             int k = px_repeat_due(&g_rep, ticks());
+            int kp = px_repeat_due_page(&g_page, ticks());
             if (k) act = key_action(k, 1);
+            else if (kp) act = key_action(kp, 1);
         }
         if (act != ACT_NONE) {
             Snap before = snap(&m);
