@@ -32,7 +32,12 @@ record_play() {
     secs=$(( $(date +%s) - $2 ))
     [ "$secs" -ge 5 ] || return 0
     mkdir -p "$STATS_DIR" 2>/dev/null || return 0
-    key="nds/$(basename "$1")"
+    rom="$1"
+    case "$rom" in
+        /run/banana/sd2/roms/nds/*) key="nds/@sd2/${rom#/run/banana/sd2/roms/nds/}" ;;
+        /data/roms/nds/*) key="nds/${rom#/data/roms/nds/}" ;;
+        *) key="nds/$(basename "$rom")" ;;
+    esac
     now=$(date +%s)
     [ -f "$STATS_DIR/playstats.tsv" ] || : > "$STATS_DIR/playstats.tsv"
     for stats in "$STATS_DIR/playstats.tsv" /data/banana/playstats.tsv; do

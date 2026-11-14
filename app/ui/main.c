@@ -45,7 +45,9 @@ static uint32_t *g_buf[2];
 static char g_app[512];
 static PxRepeat g_rep;            /* the direction held down */
 static PxRepeat g_page;           /* L/R page held */
-static int g_rail_drag;           /* the finger is on the library's horizontal rail */
+static int g_rail_drag;           /* the finger is dragging a scrollbar thumb */
+static int g_touch_row;           /* second tap on the same row launches */
+static long g_touch_row_ms;
 static int g_exit;                /* UPD_RESTART after an update: tile.sh opens the new version */
 /* a game picked in the list: its path in PLAY_FILE, and tile.sh runs it on the app's BananaDS (run-emu) */
 #define PLAY_EXIT 76
@@ -465,8 +467,22 @@ static void game_pick(Model *m, int g);
 static void library_page(Model *m, int dir);
 static void free_thumbs(Model *m);
 
-static void game_fav_key(const char *rom, char *dst, int n)
+/* the same key BananaOS uses in playstats.tsv and favorites.txt: nds/<rel>, @sd2 for the second card */
+static void game_banana_key(const char *rom, char *dst, int n)
 {
+    const char *roms = getenv("BANANA_ROMS");
+    char nds[320];
+    size_t ln;
+    snprintf(nds, sizeof nds, "%s/nds", roms && roms[0] ? roms : "/data/roms");
+    if (!strncmp(rom, "/run/banana/sd2/roms/nds/", 25)) {
+        snprintf(dst, (size_t)n, "nds/@sd2/%s", rom + 25);
+        return;
+    }
+    ln = strlen(nds);
+    if (!strncmp(rom, nds, ln) && rom[ln] == '/') {
+        snprintf(dst, (size_t)n, "nds/%s", rom + ln + 1);
+        return;
+    }
     snprintf(dst, (size_t)n, "nds/%s", base_of(rom));
 }
 
@@ -484,7 +500,7 @@ static int fav_rank(const SortCtx *sc, const char *rom)
 {
     char key[GAME_PATH + 8];
     int i;
-    game_fav_key(rom, key, (int)sizeof key);
+    game_banana_key(rom, key, (int)sizeof key);
     for (i = 0; i < sc->nfav; i++) if (!strcmp(sc->fav[i], key)) return i;
     return 99999;
 }
@@ -541,7 +557,7 @@ static void resort_games(Model *m)
             int p = 0;
             long sec = 0;
             time_t lt = 0;
-            game_fav_key(m->games[i], key, (int)sizeof key);
+            game_banana_key(m->games[i], key, (int)sizeof key);
             stats_add(MENU_STATS, key, &p, &sec, &lt);
             stats_add(APP_STATS, key, &p, &sec, &lt);
             g_sort_ctx.recent[i] = lt;
@@ -573,7 +589,7 @@ int game_is_favorite(const char *rom)
 {
     char line[GAME_PATH + 16], key[GAME_PATH + 8];
     FILE *f;
-    game_fav_key(rom, key, (int)sizeof key);
+    game_banana_key(rom, key, (int)sizeof key);
     f = fopen(FAVORITES_FILE, "r");
     if (!f) return 0;
     while (fgets(line, sizeof line, f)) {
@@ -602,7 +618,7 @@ static void toggle_favorite(Model *m)
     int n = 0, found = 0;
     FILE *f;
     if (m->ngames <= 0) return;
-    game_fav_key(m->games[m->gsel], key, (int)sizeof key);
+    game_banana_key(m->games[m->gsel], key, (int)sizeof key);
     f = fopen(FAVORITES_FILE, "r");
     if (f) {
         while (fgets(line, sizeof line, f) && n < MAX_GAMES) {
@@ -916,7 +932,11 @@ static int handle(Model *m, int act, int arg)
             break;
         case ACT_ROW:
             if (arg != m->gsel) { game_pick(m, arg); break; }
-            /* fall through */
+            if (!m->emu_ok || upd_installing(&m->upd)) break;
+            if (!write_line(PLAY_FILE, m->games[m->gsel])) break;
+            write_line(LAST_FILE, m->games[m->gsel]);
+            g_exit = PLAY_EXIT;
+            return 1;
         case ACT_OK:
             if (m->ngames <= 0 || !m->emu_ok || upd_installing(&m->upd)) break;
             if (!write_line(PLAY_FILE, m->games[m->gsel])) break;
@@ -1040,24 +1060,73 @@ static int open_inputs(Dev *dev, int max)
     return n;
 }
 
-static int rail_pick(int hx, int hy, const Model *m, int *out)
+static int in_rect(int hx, int hy, PxRect r)
+{
+    return hx >= r.x && hx < r.x + r.w && hy >= r.y && hy < r.y + r.h;
+}
+
+static int rail_thumb_at(int hx, int hy, int *out_g)
+{
+    int h;
+    for (h = 0; h < g_nhits; h++) {
+        if (g_hits[h].id != HIT_RAIL_THUMB && g_hits[h].id != HIT_VRAIL_THUMB) continue;
+        if (!in_rect(hx, hy, g_hits[h].r)) continue;
+        return 1;
+    }
+    (void)out_g;
+    return 0;
+}
+
+static int rail_track_jump(const Model *m, int hx, int hy, int *out_g)
 {
     int h;
     for (h = 0; h < g_nhits; h++) {
         PxRect r = g_hits[h].r;
-        if (g_hits[h].id == HIT_RAIL && hx >= r.x && hx < r.x + r.w) {
-            if (m->ngames <= 1) { *out = 0; return 1; }
-            *out = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+        if (g_hits[h].id == HIT_RAIL_TRACK && in_rect(hx, hy, r)) {
+            if (m->ngames <= 1) { *out_g = 0; return 1; }
+            *out_g = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+            if (*out_g < 0) *out_g = 0;
+            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
             return 1;
         }
-        if (g_hits[h].id == HIT_VRAIL && hy >= r.y && hy < r.y + r.h) {
-            if (m->ngames <= 1) { *out = 0; return 1; }
-            *out = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
-            if (*out < 0) *out = 0;
-            if (*out >= m->ngames) *out = m->ngames - 1;
+        if (g_hits[h].id == HIT_VRAIL_TRACK && in_rect(hx, hy, r)) {
+            if (m->ngames <= 1) { *out_g = 0; return 1; }
+            *out_g = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
+            if (*out_g < 0) *out_g = 0;
+            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
             return 1;
         }
     }
+    return 0;
+}
+
+static int rail_thumb_drag(const Model *m, int hx, int hy, int *out_g)
+{
+    int h;
+    for (h = 0; h < g_nhits; h++) {
+        PxRect r = g_hits[h].r;
+        if (g_hits[h].id == HIT_RAIL_TRACK) {
+            if (m->ngames <= 1) { *out_g = 0; return 1; }
+            if (hx < r.x) hx = r.x;
+            if (hx >= r.x + r.w) hx = r.x + r.w - 1;
+            *out_g = (int)((long)(hx - r.x) * (m->ngames - 1) / (r.w > 0 ? r.w : 1));
+            if (*out_g < 0) *out_g = 0;
+            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
+            return 1;
+        }
+        if (g_hits[h].id == HIT_VRAIL_TRACK) {
+            if (m->ngames <= 1) { *out_g = 0; return 1; }
+            if (hy < r.y) hy = r.y;
+            if (hy >= r.y + r.h) hy = r.y + r.h - 1;
+            *out_g = (int)((long)(hy - r.y) * (m->ngames - 1) / (r.h > 0 ? r.h : 1));
+            if (*out_g < 0) *out_g = 0;
+            if (*out_g >= m->ngames) *out_g = m->ngames - 1;
+            return 1;
+        }
+    }
+    (void)m;
+    (void)hx;
+    (void)hy;
     return 0;
 }
 
@@ -1119,6 +1188,8 @@ int main(int argc, char **argv)
             fclose(f);
         }
         games_open(&m, last);
+        if (argc > 1 && !strcmp(argv[1], "--games") && m.sort == SORT_RECENT)
+            resort_games(&m);
         /* a look for a newer version as it opens (in the background: no network just says so); not each time a
            game ends */
         if (!(argc > 1 && !strcmp(argv[1], "--games"))) upd_start(&m.upd, g_app, "bananads-lan", 0);
@@ -1183,19 +1254,41 @@ int main(int argc, char **argv)
                         int hy = touch_px(dev[i].y, dev[i].miny, dev[i].maxy, g_h);
                         if (dev[i].down && m.view == V_GAMES) {
                             int g = 0;
-                            if (rail_pick(hx, hy, &m, &g)) {
+                            if (rail_thumb_at(hx, hy, &g)) {
                                 g_rail_drag = 1;
-                                act = ACT_RAIL;
-                                arg = g;
-                            } else if (g_rail_drag && rail_pick(hx, hy, &m, &g)) {
+                            } else if (g_rail_drag && rail_thumb_drag(&m, hx, hy, &g)) {
                                 act = ACT_RAIL;
                                 arg = g;
                             }
                         }
                         if (!dev[i].down && dev[i].was) {
-                            int a = touch_action(hx, hy, &arg);
-                            if (a) act = a;
-                            g_rail_drag = 0;
+                            int g = 0, a;
+                            if (g_rail_drag) {
+                                if (rail_thumb_drag(&m, hx, hy, &g)) {
+                                    act = ACT_RAIL;
+                                    arg = g;
+                                }
+                                g_rail_drag = 0;
+                            } else if (m.view == V_GAMES && rail_track_jump(&m, hx, hy, &g)) {
+                                act = ACT_RAIL;
+                                arg = g;
+                            } else {
+                                a = touch_action(hx, hy, &arg);
+                                if (a == ACT_ROW && m.view == V_GAMES) {
+                                    long now = ticks();
+                                    if (arg == m.gsel && g_touch_row == arg && now - g_touch_row_ms < 450)
+                                        act = ACT_ROW;
+                                    else if (arg != m.gsel) {
+                                        g_touch_row = arg;
+                                        g_touch_row_ms = now;
+                                        act = ACT_ROW;
+                                    } else {
+                                        g_touch_row = arg;
+                                        g_touch_row_ms = now;
+                                    }
+                                } else if (a)
+                                    act = a;
+                            }
                         }
                         dev[i].was = dev[i].down;
                     }

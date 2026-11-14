@@ -19,7 +19,8 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 /* the library as a grid (the default): GRID_ROWS per column, GRID_COLS columns in view, scrolled sideways */
 #define GRID_ROWS 3
 #define GRID_COLS 5
-#define TILE_W 114.0f
+#define LIB_INNER_W 576.0f
+#define TILE_W 108.0f
 #define TILE_H 108.0f
 #define TILE_GAP 8.0f
 #define TILE_IMG_W (TILE_W - 16.0f)
@@ -36,7 +37,10 @@ enum { SORT_AZ, SORT_FAV, SORT_RECENT, SORT_COUNT };
 #define MAX_GAMES 2048
 #define GAME_PATH 384
 /* what a touch on the bottom panel does */
-enum { HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_START, HIT_SORT, HIT_VIEW, HIT_RAIL, HIT_VRAIL };
+enum {
+    HIT_NONE, HIT_ROW, HIT_BACK, HIT_OK, HIT_Y, HIT_START, HIT_SORT, HIT_VIEW, HIT_RAIL_TRACK, HIT_RAIL_THUMB,
+    HIT_VRAIL_TRACK, HIT_VRAIL_THUMB
+};
 
 typedef struct {
     int supported, enabled, mounted;

@@ -379,12 +379,11 @@ int px_repeat_wait_page(const PxRepeat *r, long now_ms)
 void px_fav_heart(PxCanvas *c, float x, float y, float s)
 {
     uint32_t fill = px.red, rim = 0xffffff;
-    float r = s * 0.28f;
-    px_round(c, x, y, s, s, 2, rim, 255);
-    px_round(c, x + 1, y + 1, s - 2, s - 2, 2, fill, 255);
-    px_round(c, x + s * 0.18f, y + s * 0.22f, r, r, r, rim, 255);
-    px_round(c, x + s * 0.52f, y + s * 0.22f, r, r, r, rim, 255);
-    px_triangle(c, x + s * 0.5f, y + s * 0.88f, (int)(s * 0.42f), 2, rim);
+    float lob = s * 0.36f, top = y + s * 0.22f;
+    px_round(c, x + s * 0.12f, top, lob, lob, lob * 0.5f, fill, 255);
+    px_round(c, x + s * 0.52f, top, lob, lob, lob * 0.5f, fill, 255);
+    px_triangle(c, x + s * 0.5f, y + s * 0.94f, (int)(s * 0.62f), 2, fill);
+    (void)rim;
 }
 
 void px_pal_make(PxPal *p, const PxSettings *st)
@@ -1183,15 +1182,15 @@ void px_faces(PxCanvas *c, float y, int n, int left, const PxFace *f, PxRect *hi
     g_face_size = 19;
 }
 
-void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total, PxRect *hit)
+void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int total, PxRect *track, PxRect *thumb)
 {
     float th, ty;
     px_round(c, x, y, 5, h, 2, px.rail_bg, 255);
-    if (hit) {
-        hit->x = px_u(c, x - 8);
-        hit->y = px_u(c, y);
-        hit->w = px_u(c, x + 22) - hit->x;
-        hit->h = px_u(c, y + h) - hit->y;
+    if (track) {
+        track->x = px_u(c, x - 8);
+        track->y = px_u(c, y);
+        track->w = px_u(c, x + 14) - track->x;
+        track->h = px_u(c, y + h) - track->y;
     }
     if (total <= 0) return;
     if (shown > total) shown = total;
@@ -1202,9 +1201,15 @@ void px_rail(PxCanvas *c, float x, float y, float h, int first, int shown, int t
     px_round(c, x - 1, ty, 7, th, 2, px.edge, 255);
     px_round(c, x, ty + 1, 5, th - 2, 2, px.accent.base, 255);
     px_rect(c, x + 1, ty + 2, 3, 4, px.accent.light);
+    if (thumb) {
+        thumb->x = px_u(c, x - 4);
+        thumb->y = px_u(c, ty - 2);
+        thumb->w = px_u(c, x + 12) - thumb->x;
+        thumb->h = px_u(c, ty + th + 2) - thumb->y;
+    }
 }
 
-void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const char *count, PxRect *hit)
+void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const char *count, PxRect *track, PxRect *thumb)
 {
     float tw, tx, cw = 0, track_w = w;
     if (count && count[0]) {
@@ -1213,11 +1218,11 @@ void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const 
         track_w = w - cw;
     }
     px_round(c, x, y + 1, track_w, 10, 2, px.rail_bg, 255);
-    if (hit) {
-        hit->x = px_u(c, x);
-        hit->y = px_u(c, y - 6);
-        hit->w = px_u(c, x + track_w) - hit->x;
-        hit->h = px_u(c, y + 18) - hit->y;
+    if (track) {
+        track->x = px_u(c, x);
+        track->y = px_u(c, y - 6);
+        track->w = px_u(c, x + track_w) - track->x;
+        track->h = px_u(c, y + 18) - track->y;
     }
     if (total <= 1) {
         tw = track_w < 48 ? track_w : 48;
@@ -1231,6 +1236,12 @@ void px_hrail(PxCanvas *c, float x, float y, float w, int pos, int total, const 
     px_round(c, tx - 1, y, tw + 2, 12, 2, px.edge, 255);
     px_round(c, tx, y + 1, tw, 10, 2, px.accent.base, 255);
     px_rect(c, tx + 2, y + 2, tw * 0.35f, 3, px.accent.light);
+    if (thumb) {
+        thumb->x = px_u(c, tx - 4);
+        thumb->y = px_u(c, y - 4);
+        thumb->w = px_u(c, tx + tw + 4) - thumb->x;
+        thumb->h = px_u(c, y + 16) - thumb->y;
+    }
 }
 
 void px_label(PxCanvas *c, float x, float y, const char *s, uint32_t rgb)

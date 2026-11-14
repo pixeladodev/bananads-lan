@@ -421,20 +421,19 @@ static void games_bottom(PxCanvas *c, const Model *m)
             px_card(c, x, y, TILE_W, TILE_H, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, x + 8, y + 8, TILE_IMG_W, TILE_IMG_H,
                        name, sel);
-            if (game_is_favorite(m->games[g])) px_fav_heart(c, x + TILE_W - 16, y + 4, 10);
+            if (game_is_favorite(m->games[g])) px_fav_heart(c, x + TILE_W - 17, y + 3, 13);
             add_hit(c, x, y, TILE_W, TILE_H, HIT_ROW, g);
         }
         grid_bot = LIB_TOP + GRID_ROWS * (TILE_H + TILE_GAP);
-        if (cols > GRID_COLS) {
-            px_hrail(c, 18, grid_bot, 604, m->gsel, m->ngames, NULL, &rail);
-            g_hits[g_nhits].r = rail;
-            g_hits[g_nhits].id = HIT_RAIL;
+        if (cols > GRID_COLS || m->ngames > 1) {
+            PxRect track, thumb;
+            px_hrail(c, 18, grid_bot, LIB_INNER_W, m->gsel, m->ngames, NULL, &track, &thumb);
+            g_hits[g_nhits].r = track;
+            g_hits[g_nhits].id = HIT_RAIL_TRACK;
             g_hits[g_nhits].arg = 0;
             g_nhits++;
-        } else if (m->ngames > 1) {
-            px_hrail(c, 18, grid_bot, 604, m->gsel, m->ngames, NULL, &rail);
-            g_hits[g_nhits].r = rail;
-            g_hits[g_nhits].id = HIT_RAIL;
+            g_hits[g_nhits].r = thumb;
+            g_hits[g_nhits].id = HIT_RAIL_THUMB;
             g_hits[g_nhits].arg = 0;
             g_nhits++;
         }
@@ -444,17 +443,22 @@ static void games_bottom(PxCanvas *c, const Model *m)
             int g = m->gtop + i, sel = g == m->gsel;
             float y = LIST_Y0 + i * LIST_ROW_PITCH;
             view_game_name(m->games[g], name, (int)sizeof name);
-            px_card(c, 18, y, 588, 54, sel, 0);
+            px_card(c, 18, y, LIB_INNER_W - 20, 54, sel, 0);
             game_image(c, m->tstate && m->tstate[g] == 1 ? &m->thumbs[g] : NULL, 32, y + 7, LIST_IMG, LIST_IMG, name,
                        sel);
             px_text_fit(c, PX_MEDIUM, 20, 86, y + 14, name, sel ? px.on_pick : px.ink, 0, 500, PX_LEFT);
-            if (game_is_favorite(m->games[g])) px_fav_heart(c, 590, y + 4, 10);
-            add_hit(c, 18, y, 588, 54, HIT_ROW, g);
+            if (game_is_favorite(m->games[g])) px_fav_heart(c, 18 + LIB_INNER_W - 30, y + 3, 13);
+            add_hit(c, 18, y, LIB_INNER_W - 20, 54, HIT_ROW, g);
         }
         if (m->ngames > GAME_ROWS) {
-            px_rail(c, 615, LIST_Y0, list_h, m->gtop, GAME_ROWS, m->ngames, &rail);
-            g_hits[g_nhits].r = rail;
-            g_hits[g_nhits].id = HIT_VRAIL;
+            PxRect track, thumb;
+            px_rail(c, 600, LIST_Y0, list_h, m->gtop, GAME_ROWS, m->ngames, &track, &thumb);
+            g_hits[g_nhits].r = track;
+            g_hits[g_nhits].id = HIT_VRAIL_TRACK;
+            g_hits[g_nhits].arg = 0;
+            g_nhits++;
+            g_hits[g_nhits].r = thumb;
+            g_hits[g_nhits].id = HIT_VRAIL_THUMB;
             g_hits[g_nhits].arg = 0;
             g_nhits++;
         }
@@ -567,7 +571,7 @@ void view_bottom(PxCanvas *c, const Model *m)
     snprintf(count, sizeof count, "%02d/%02d", m->cursor + 1, ROW_COUNT);
     px_text(c, PX_MEDIUM, 19, 602 - px_text_w(c, PX_MEDIUM, 19, count, 0), 30, count, px.muted, 0);
     for (i = 0; i < ROW_COUNT; i++) row(c, m, i, 84 + i * 66);
-    px_rail(c, 615, 84, ROW_COUNT * 66 - 12, m->cursor, 1, ROW_COUNT, NULL);
+    px_rail(c, 615, 84, ROW_COUNT * 66 - 12, m->cursor, 1, ROW_COUNT, NULL, NULL);
     help(c, m);
 
     if (m->view == V_MAIN) {
