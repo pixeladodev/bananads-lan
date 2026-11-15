@@ -5,6 +5,7 @@
 # Pixelify Sans: PIXEL_UI_FONTS, else a BananaLinux checkout next to this repo (its themes too).
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+[ -f "$ROOT/preview.env" ] && set -a && . "$ROOT/preview.env" && set +a
 OUT=${1:-$ROOT/dist/preview}
 CC=${HOST_CC:-cc}
 if [ -z "${PIXEL_UI_FONTS:-}" ]; then
@@ -20,6 +21,7 @@ if [ -z "${PIXEL_UI_THEMES_IMAGE:-}" ] && [ -d "$ROOT/../BananaLinux/system/root
 fi
 export PIXEL_UI_THEMES_IMAGE="${PIXEL_UI_THEMES_IMAGE:-/usr/share/banana/themes}"
 export BANANA_THEMES="${BANANA_THEMES:-$ROOT/dist/no-card-themes}"
+export PREVIEW_LIBRARY_FILE="${PREVIEW_LIBRARY_FILE:-$ROOT/preview-library.list}"
 mkdir -p "$OUT" "$ROOT/dist"
 export PREVIEW_STAMP="${PREVIEW_STAMP:-$(TZ=America/Lima date +%Y%m%d-%H%M)}"
 UI=$ROOT/app/ui

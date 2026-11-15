@@ -1,0 +1,11 @@
+# One ROM basename per line (under ROM_PREVIEW_SRC / PREVIEW_MEDIA). Copy to preview-library.list.
+sample-01.nds
+sample-02.nds
+sample-03.nds
+sample-04.nds
+sample-05.nds
+sample-06.nds
+sample-07.nds
+sample-08.nds
+sample-09.nds
+sample-10.nds

@@ -3,10 +3,15 @@
 #include "pixel_png.h"
 #include "view.h"
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
+
+#define PREVIEW_THUMB_MAX 128
+#define PREVIEW_ROM_MAX 128
 
 static Model base(void)
 {
@@ -30,19 +35,19 @@ static Model base(void)
    the console, and a ROM's banner for one without) */
 static void pictures(Model *m, int h)
 {
-    static PxImage thumbs[64], art;
-    static signed char st[64];
+    int cap = PREVIEW_THUMB_MAX;
+    static PxImage thumbs[PREVIEW_THUMB_MAX], art;
+    static signed char st[PREVIEW_THUMB_MAX];
     float s = h / 480.0f;
     int i;
-    for (i = 0; i < 64; i++) if (st[i] == 1) px_image_free(&thumbs[i]);
-    memset(st, 0, sizeof st);
+    if (!getenv("PREVIEW_README_ONLY")) cap = 64;
+    for (i = 0; i < cap; i++) if (st[i] == 1) px_image_free(&thumbs[i]);
+    memset(st, 0, (size_t)cap * sizeof *st);
     px_image_free(&art);
     m->thumbs = thumbs;
     m->tstate = st;
-    for (i = 0; i < m->ngames && i < 64; i++) {
-        char box[GAME_PATH + 64];
-        int ok = 0;
-        ok = px_nds_icon(m->games[i], &thumbs[i]);
+    for (i = 0; i < m->ngames && i < cap; i++) {
+        int ok = px_nds_icon(m->games[i], &thumbs[i]);
         st[i] = ok ? 1 : -1;
     }
     m->art_game = -1;
@@ -106,6 +111,156 @@ static int shot(const char *dir, const char *name, int w, int h, const char *the
 
 int game_is_favorite(const char *rom) { (void)rom; return 0; }
 
+static unsigned preview_banner_sig(const char *rom)
+{
+    PxImage img;
+    unsigned h = 2166136261u;
+    if (!px_nds_icon(rom, &img)) return 0;
+    for (size_t i = 0; i < (size_t)img.w * (size_t)img.h; i++) h ^= img.px[i], h *= 16777619u;
+    px_image_free(&img);
+    return h;
+}
+
+static int preview_leaf_eq(const char *path, const char *leaf)
+{
+    const char *s = strrchr(path, '/');
+    return s && strcasecmp(s + 1, leaf) == 0;
+}
+
+static void preview_trim(char *s)
+{
+    char *p = s, *e;
+    while (*p == ' ' || *p == '\t') p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+    e = s + strlen(s);
+    while (e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t')) *--e = 0;
+}
+
+static int preview_games_from_list(const char *media, const char *list, char games[][GAME_PATH], int cap)
+{
+    FILE *f;
+    char line[512];
+    int n = 0;
+    if (!media || !list || !list[0]) return 0;
+    f = fopen(list, "r");
+    if (!f) return 0;
+    while (n < cap && fgets(line, sizeof line, f)) {
+        preview_trim(line);
+        if (!line[0] || line[0] == '#') continue;
+        snprintf(games[n], GAME_PATH, "%s/%s", media, line);
+        n++;
+    }
+    fclose(f);
+    return n;
+}
+
+static int preview_cmp_leaf(const void *a, const void *b)
+{
+    return strcasecmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+/* README library shots only (PREVIEW_README_ONLY=1): grid dark/en, list light/es. */
+static int preview_readme_fill(const char *media, char games[][GAME_PATH], int *unique_out)
+{
+    static const char *names[PREVIEW_ROM_MAX];
+    unsigned sigs[PREVIEW_ROM_MAX];
+    char tmppath[GAME_PATH];
+    int nnames = 0, n = 0, u = 0, i, j;
+    DIR *d;
+    struct dirent *e;
+    if (!media) media = ".";
+    d = opendir(media);
+    if (!d) return 0;
+    while (nnames < PREVIEW_ROM_MAX && (e = readdir(d))) {
+        size_t len;
+        if (e->d_name[0] == '.') continue;
+        len = strlen(e->d_name);
+        if (len < 5 || strcasecmp(e->d_name + len - 4, ".nds") != 0) continue;
+        names[nnames++] = strdup(e->d_name);
+    }
+    closedir(d);
+    qsort(names, (size_t)nnames, sizeof *names, preview_cmp_leaf);
+    for (i = 0; i < nnames && n < PREVIEW_ROM_MAX; i++) {
+        unsigned sig;
+        snprintf(tmppath, sizeof tmppath, "%s/%s", media, names[i]);
+        free((void *)names[i]);
+        sig = preview_banner_sig(tmppath);
+        if (!sig) continue;
+        for (j = 0; j < u; j++)
+            if (sigs[j] == sig) break;
+        if (j < u) continue;
+        sigs[u++] = sig;
+        snprintf(games[n], GAME_PATH, "%s", tmppath);
+        n++;
+    }
+    if (unique_out) *unique_out = u;
+    /* 4+ grid pages: need ceil(n/GRID_ROWS) - GRID_COLS columns spare; list: n > 4*LIST_PAGE_STEP+GAME_ROWS */
+    if (n < 26) {
+        fprintf(stderr, "preview: need >=26 ROMs with banners (have %d)\n", n);
+        return 0;
+    }
+    return n;
+}
+
+static int preview_readme_shots(const char *dir)
+{
+    const char *media = getenv("PREVIEW_MEDIA");
+    static char readme_g[PREVIEW_ROM_MAX][GAME_PATH];
+    Model m;
+    int n, unique = 0, gsel, col, cols, ok = 1, k;
+    if (!media) media = ".";
+    n = preview_readme_fill(media, readme_g, &unique);
+    if (n <= 0) return 1;
+    gsel = 0;
+    {
+        const char *grid = getenv("PREVIEW_README_GRID_SEL");
+        if (grid && grid[0])
+            for (k = 0; k < n; k++)
+                if (preview_leaf_eq(readme_g[k], grid)) { gsel = k; break; }
+    }
+    col = gsel / GRID_ROWS;
+    cols = (n + GRID_ROWS - 1) / GRID_ROWS;
+    m = base();
+    snprintf(m.model, sizeof m.model, "rgds_plus");
+    m.view = V_GAMES;
+    m.games = readme_g;
+    m.ngames = n;
+    m.grid = 1;
+    m.gsel = gsel;
+    m.gleft = col > 2 ? col - 2 : 0;
+    if (m.gleft > cols - GRID_COLS) m.gleft = cols > GRID_COLS ? cols - GRID_COLS : 0;
+    m.gsave = 262144;
+    m.gsave_time = time(NULL) - 3600 * 26;
+    m.gsecs = 3600 * 12 + 60 * 43;
+    m.gplays = 9;
+    m.glast = time(NULL) - 3600 * 2;
+    ok &= shot(dir, "readme-grid", 1024, 768, "dark", "yellow", "en", &m);
+    gsel = 0;
+    {
+        const char *list = getenv("PREVIEW_README_LIST_SEL");
+        if (list && list[0])
+            for (k = 0; k < n; k++)
+                if (preview_leaf_eq(readme_g[k], list)) { gsel = k; break; }
+    }
+    m = base();
+    snprintf(m.model, sizeof m.model, "rgds_plus");
+    m.view = V_GAMES;
+    m.games = readme_g;
+    m.ngames = n;
+    m.grid = 0;
+    m.gsel = gsel;
+    m.gtop = gsel > 3 ? gsel - 3 : 0;
+    if (m.gtop > n - GAME_ROWS) m.gtop = n > GAME_ROWS ? n - GAME_ROWS : 0;
+    m.gsave = 393216;
+    m.gsave_time = time(NULL) - 600;
+    m.gsecs = 3600 * 41 + 60 * 5;
+    m.glast = time(NULL) - 600;
+    ok &= shot(dir, "readme-list", 1024, 768, "light", "yellow", "es", &m);
+    fprintf(stderr, "preview: %d library ROMs, %d unique banner icons\n", n, unique);
+    px_fonts_free();
+    return ok ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : ".";
@@ -114,6 +269,8 @@ int main(int argc, char **argv)
     Model m;
     int s, t, ok = 1;
     if (!px_fonts_load(NULL)) { fprintf(stderr, "preview: set PIXEL_UI_FONTS to a folder with Pixelify Sans\n"); return 1; }
+    if (getenv("PREVIEW_README_ONLY"))
+        return preview_readme_shots(dir);
     for (s = 0; s < 2; s++)
         for (t = 0; t < 2; t++) {
             m = base();
@@ -175,21 +332,24 @@ int main(int argc, char **argv)
     ok &= shot(dir, "update-done", 640, 480, "dark", "yellow", "es", &m);
     /* the library, where the app opens: a grid scrolled sideways (X: a list), the picked game's cover on top */
     {
-        static const char *names[10] = {
-            "Advance Wars - Dual Strike.nds", "Chrono Trigger.nds", "Mario Kart DS.nds", "New Super Mario Bros.nds",
-            "Picross 3D.nds", "Pokemon - Edicion Negra 2.nds", "Pokemon - Edicion Platino.nds",
-            "Professor Layton and the Curious Village.nds", "Tetris DS.nds", "The Legend of Zelda - Phantom Hourglass.nds" };
-        static char games[10][GAME_PATH];
+        static char games[PREVIEW_ROM_MAX][GAME_PATH];
         const char *media = getenv("PREVIEW_MEDIA");
-        int i;
-        for (i = 0; i < 10; i++) snprintf(games[i], GAME_PATH, "%s/%s", media ? media : ".", names[i]);
+        const char *list = getenv("PREVIEW_LIBRARY_FILE");
+        int ng;
+        if (!list || !list[0]) list = "preview-library.list";
+        ng = preview_games_from_list(media ? media : ".", list, games, PREVIEW_ROM_MAX);
+        if (ng < 1) {
+            fprintf(stderr, "preview: set PREVIEW_LIBRARY_FILE to a list of ROM basenames\n");
+            px_fonts_free();
+            return 1;
+        }
         m = base();
         snprintf(m.model, sizeof m.model, "rgds");
         m.view = V_GAMES;
         m.games = games;
-        m.ngames = 10;
+        m.ngames = ng;
         m.grid = 1;
-        m.gsel = 2;
+        m.gsel = ng > 2 ? 2 : 0;
         m.gsave = 262144;
         m.gsave_time = time(NULL) - 3600 * 26;
         m.gsecs = 3600 * 12 + 60 * 43;
@@ -219,9 +379,9 @@ int main(int argc, char **argv)
         snprintf(m.model, sizeof m.model, "rgds");
         m.view = V_GAMES;
         m.games = games;
-        m.ngames = 10;
+        m.ngames = ng;
         m.grid = 0;
-        m.gsel = 6;
+        m.gsel = ng > 6 ? 6 : 0;
         m.gtop = 3;
         m.gsave = 393216;
         m.gsave_time = time(NULL) - 600;
@@ -229,11 +389,20 @@ int main(int argc, char **argv)
         m.glast = time(NULL) - 600;
         ok &= shot(dir, "library-list", 640, 480, "dark", "yellow", "es", &m);
         ok &= shot(dir, "library-list", 1024, 768, "light", "yellow", "en", &m);
-        snprintf(games[4], GAME_PATH, "%s/%s", media ? media : ".",
-                 "Final Fantasy - Crystal Chronicles - Echoes of Time Deluxe Edition.nds");
-        m.gsel = 4;
-        m.gtop = 2;
-        px_marquee_preview("Final Fantasy - Crystal Chronicles - Echoes of Time Deluxe Edition", 2800);
+        {
+            const char *mrom = getenv("PREVIEW_MARQUEE_ROM");
+            const char *mtitle = getenv("PREVIEW_MARQUEE_TITLE");
+            int slot = 4;
+            const char *sslot = getenv("PREVIEW_MARQUEE_SLOT");
+            if (sslot && sslot[0]) slot = atoi(sslot);
+            if (slot < 0) slot = 0;
+            if (slot >= ng) slot = ng - 1;
+            if (mrom && mrom[0])
+                snprintf(games[slot], GAME_PATH, "%s/%s", media ? media : ".", mrom);
+            m.gsel = slot;
+            m.gtop = slot > 2 ? slot - 2 : 0;
+            if (mtitle && mtitle[0]) px_marquee_preview(mtitle, 2800);
+        }
         ok &= shot(dir, "library-list-marquee", 640, 480, "dark", "yellow", "es", &m);
         m.upd.state = UPD_AVAILABLE;
         snprintf(m.upd.latest, sizeof m.upd.latest, "0.4.1");

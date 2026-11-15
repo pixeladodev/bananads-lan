@@ -1,72 +1,72 @@
 # BananaDS LAN
 
-Local multiplayer for Nintendo DS games on BananaOS. Two or more consoles on the same Wi-Fi network can race, battle, trade and chat as if they were linked by DS wireless, using BananaDS.
+<p align="center">
+  <b>Local multiplayer for handheld games on BananaOS — same network, play together.</b>
+</p>
 
-Install it once, turn it on from the Apps shelf, and play.
+<p align="center">
+  <a href="#at-a-glance">At a glance</a> ·
+  <a href="#get-it-on-your-card">Get it on your card</a> ·
+  <a href="#remove-it">Remove it</a> ·
+  <a href="#tips">Tips</a>
+</p>
 
-## Requirements
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/readme-grid.png" alt="Library in grid layout, dark theme"><br>
+      <sub><b>Grid</b></sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/readme-list.png" alt="Library in list layout, light theme and Spanish UI"><br>
+      <sub><b>List</b></sub>
+    </td>
+  </tr>
+</table>
 
-- Anbernic RG DS or RG DS Plus
-- BananaOS 0.5.3.4 (for BananaOS 0.5.2.2, use BananaDS LAN 0.2.0; for 0.5.0.1, 0.1.0)
-- All consoles connected to the same Wi-Fi network
-- BananaDS as the Nintendo DS emulator: Settings > Nintendo DS > Emulator > BananaDS
+## At a glance
 
-On any other BananaOS version the app does nothing and your games keep the BananaDS that came with the system.
+- 📡 **Linked play** on your home network — local multiplayer is on by default for compatible games.
+- 📚 **In-app library** with play time, last played, saves, and the console IP for sessions.
+- 🌐 **English or Spanish** — follows the handheld language.
+- 💾 **Saves** on the card at `/data/saves/nds` (shared with the system save folder).
+- 🔄 **Updates** from inside the app when a release is available.
 
-## Install
+## Get it on your card
 
-Download `bananads-lan-<version>.zip` from [Releases](../../releases) and extract it. You get:
+**Option A — one installer file**
 
-- the folder `bananads-lan`
-- the file `BananaDS LAN.sh`
-- `INSTALL.txt` (these same steps, in English and Spanish)
+1. Download **Install-BananaDS-LAN.sh** from the release.
+2. Copy it into **store/tiles** on the shared **banana** folder (do not replace the whole **store** folder).
+3. Reboot once, open **Apps**, and run the installer tile.
 
-**Recommended:** copy `Install-BananaDS-LAN.sh` from the release into `store/tiles`, reboot once, open Apps, and run the installer tile.
+**Option B — full zip**
 
-Or extract the zip and copy the folder `bananads-lan` into `store/apps` and `BananaDS LAN.sh` into `store/tiles`. Copy only those items; do not replace the whole `store` folder. Reboot once and open Apps.
+1. Download the release zip and extract it.
+2. Copy **bananads-lan** into **store/apps** and **BananaDS LAN.sh** into **store/tiles** (do not replace the whole **store** folder).
+3. Reboot once, then open **Apps**.
 
-Full steps (file sharing, SMB, microSD) are in `INSTALL.txt` inside the zip.
+After either option, leave **Apps** and open **Apps** again so the list refreshes (temporary BananaOS limitation).
 
-## Use
+More steps (file sharing, copying from a computer, etc.) are in `INSTALL.txt`.
 
-Open BananaDS LAN from Apps:
+## Remove it
 
-- **A** turns Local multiplayer on or off, or, on **Updates**, looks for and installs a newer version
-- **SELECT** shows About: version, author, source code and credits
-- **Y** uninstalls the app (it asks first)
-- **B** goes back to the menu
+1. Open the app, then press **START** to open **Settings**.
+2. Press **Y** for **Uninstall**, then **A** to confirm.
 
-When it is on, every DS game you open uses BananaDS with Local multiplayer. It stays on after a reboot until you turn it off or uninstall it.
+The app removes itself and its tile; games use the system emulator again.
 
-Local multiplayer is set to **Auto**, so it is plug and play: open the same game on each console, go to the game's own wireless or multiplayer mode, and the consoles find each other. You can also pick Host or Join yourself from the in-game menu, on the Local multiplayer page.
+## Tips
 
-## Updates
+- Play on a strong network; a weak link can stutter.
+- Open the **same title** on each console and enter its multiplayer mode from the game.
+- For a more stable link between consoles, install [Direct Link](https://github.com/pixeladodev/bananaos-direct-link).
 
-The app looks for a newer release on GitHub each time it opens; the **Updates** row says what it found. A on it, then A again, downloads the new zip, checks it against the SHA-256 GitHub lists for it, and installs it the way the Store does (a new folder beside the old one, then a swap), so a failed download or a damaged zip changes nothing. If Local multiplayer was on, it stays on with the new BananaDS. Then A opens the new version. A release made for another BananaOS is not installed over one that works.
+## Built with
 
-`app/update.py` does the work (`python3 update.py check` or `install`); `build/update-selftest.py` runs it against a fake GitHub on localhost.
+Open source (GPL v3). On-screen UI in C; packaging scripts match the Store layout. See `SOURCE.md`, `build/package.sh`, and `build/selftest.sh`.
 
-## Uninstall
+## Credits
 
-Open BananaDS LAN and press **Y**. It turns itself off and removes its folder and tile. Your games go back to the BananaDS that came with BananaOS.
-
-If you delete the folder by hand instead, DS games still open with the original BananaDS.
-
-## Good to know
-
-- Play close to the router. A busy or distant network can cause slowdowns.
-- Turning the app off or uninstalling it changes nothing else on the system.
-
-## Built with AI agents
-
-BananaDS LAN is an open source project built with the help of AI coding agents, following good engineering practices: every change is reviewed, and each release is tested on real RG DS and RG DS Plus consoles before it is published.
-
-Even so, as with any software, it may have bugs or behave unexpectedly on your setup. It is provided "as is", without warranty of any kind (see `LICENSE`). Use it at your own risk, and keep a backup of your saves and your microSD card.
-
-## Source and license
-
-BananaDS LAN is free software under the GNU GPL v3 (see `LICENSE` and `NOTICE`). It is built from BananaDS (SuperDrastic) and melonDS. `SOURCE.md` lists the exact source code and how to build it.
-
-### Building
-
-`./build/package.sh /path/to/bananads` builds the app and writes `dist/bananads-lan-<version>.zip` and `dist/SHA256SUMS`. Releases are built by GitHub Actions when a `v*` tag is pushed. `./build/selftest.sh` runs checks without a console.
+**Pixelado Dev** — built with AI-assisted development, reviewed on real hardware when possible. Provided as-is; see `LICENSE`.

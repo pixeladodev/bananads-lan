@@ -3,3 +3,5 @@ app/bin/
 app/ui/bananads-lan
 app/.mounted
 dev/consoles.local
+preview.env
+preview-library.list
