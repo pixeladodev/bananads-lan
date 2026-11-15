@@ -15,7 +15,7 @@ APP=$T/app
 mkdir -p "$APP/emu"
 cp "$ROOT/app/common.sh" "$ROOT/app/status.sh" "$APP/"
 printf 'bin\n' > "$APP/emu/bananads"
-printf 'app_version=0.4.0\n' > "$APP/manifest"
+printf 'app_version=0.1.0\n' > "$APP/manifest"
 printf 'VERSION_ID=0.5.3.4\n' > "$T/os"
 printf 'Anbernic RG DS\n' > "$T/model"
 BANANADS_MP_OS=$T/os BANANADS_MP_MODEL=$T/model sh "$APP/status.sh" | grep -qx supported=yes \

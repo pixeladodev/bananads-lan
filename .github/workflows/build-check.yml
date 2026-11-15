@@ -28,6 +28,9 @@ jobs:
       - name: Compile BananaDS (draft, binary and sha only)
         if: ${{ inputs.draft }}
         run: docker run --rm --platform linux/amd64 -e BANANADS_LAN_ALLOW_DRAFT=1 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+      - name: Verify emulator-only zip
+        if: ${{ !inputs.draft }}
+        run: bash build/verify-emu-zip.sh
       - name: Verify assembled release notes
         if: ${{ !inputs.draft }}
         run: bash build/assemble-release-notes.sh | head -n 5
