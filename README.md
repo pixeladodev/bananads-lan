@@ -1,13 +1,13 @@
 # BananaDS LAN
 
-Standalone **BananaDS** build for BananaOS handhelds with **local wireless multiplayer** on the same network. Games use this binary beside a launcher app (for example **Banana Lobby**); this repository does not ship an Apps-shelf UI.
+Standalone **BananaDS** build for BananaOS handhelds with **local wireless multiplayer** on the same network. You do not install this repository on the shelf. It ships inside **[Banana Lobby](https://github.com/pixeladodev/banana-lobby)** at package time; play and browse your library there.
 
 **Devices:** Anbernic **RG DS** and **RG DS Plus**. Built and checked against **BananaOS 0.5.3.4** (also tested on **BananaOS 0.5.2.2** where the manifest pins allow).
 
 ## What is in a release zip
 
 - `bananads-lan/emu/bananads` — the emulator binary (pinned `binary_sha` in `app/manifest`)
-- `run-emu`, `lan.sh`, `status.sh`, `common.sh` — runtime helpers launchers copy beside the binary
+- `run-emu`, `lan.sh`, `status.sh`, `common.sh` — runtime helpers the host app copies beside the binary
 
 ## Build locally
 
