@@ -1,24 +1,18 @@
 #!/bin/sh
-# Build the on-screen app and zip it.
-# The zip root is bananads-lan/, BananaDS LAN.sh and INSTALL.txt. No store/ tree.
+# Pack the pinned emulator runtime for Banana Lobby (and other consumers).
+# Zip root: bananads-lan/ with emu/bananads, common.sh, run-emu, lan.sh, status.sh, manifest.
 #   ./build/package.sh [/path/to/bananads]
-# The binary (build/standalone-build.sh's dist/standalone/bananads, the default) is the app's own BananaDS,
-# emu/bananads, which the library runs through run-emu without touching BananaOS's /usr/bin/bananads.
-# The version in the zip name is app_version from app/manifest.
-# The binary must match binary_sha in that file.
-# CC: an aarch64 compiler whose sysroot has libdrm. Otherwise the bananads-build:1 image is used.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 BIN=${1:-$ROOT/dist/standalone/bananads}
-[ -f "$BIN" ] || { echo "usage: ./build/package.sh [/path/to/bananads] (build/standalone-build.sh makes it)" >&2; exit 2; }
+[ -f "$BIN" ] || { echo "usage: ./build/package.sh [/path/to/bananads]" >&2; exit 2; }
 ver=$(sed -n 's/^app_version=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 want=$(sed -n 's/^binary_sha=//p' "$ROOT/app/manifest" | head -n 1 | tr -d '\r')
 [ -n "$ver" ] && [ -n "$want" ] || { echo "app/manifest needs app_version and binary_sha" >&2; exit 1; }
 if grep -Eq '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest"; then
-    echo "app/manifest still has placeholders, so this is not a releasable app:" >&2
+    echo "app/manifest still has placeholders:" >&2
     grep -E '^[a-z_]+=(TODO|todo)' "$ROOT/app/manifest" >&2
     [ "${BANANADS_LAN_ALLOW_DRAFT:-}" = 1 ] || exit 1
-    echo "BANANADS_LAN_ALLOW_DRAFT=1: packaging a draft anyway (it refuses to turn On on a handheld)" >&2
 fi
 if command -v sha256sum >/dev/null 2>&1; then
     got=$(sha256sum "$BIN" | awk '{print $1}')
@@ -30,41 +24,12 @@ fi
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 APP=$STAGE/bananads-lan
-mkdir -p "$APP/emu" "$APP/ui" "$ROOT/dist"
-
-DRM_INC=${DRM_INC:-}
-if [ -n "${CC:-}" ]; then
-    if [ -z "$DRM_INC" ]; then
-        SYS=$("$CC" -print-sysroot 2>/dev/null || true)
-        [ -n "$SYS" ] && [ -d "$SYS/usr/include/libdrm" ] && DRM_INC="$SYS/usr/include/libdrm"
-    fi
-    "$CC" -O2 -Wall -Wextra ${DRM_INC:+-I"$DRM_INC"} -I"$ROOT/app/ui/third_party" -o "$APP/ui/bananads-lan" \
-        "$ROOT/app/ui/main.c" "$ROOT/app/ui/view.c" "$ROOT/app/ui/pixel.c" "$ROOT/app/ui/updater.c" "$ROOT/app/ui/stb_impl.c" \
-        "$ROOT/app/ui/pixel_sound.c" "$ROOT/app/ui/pixel_image.c" -ldrm -lm -ldl -lpthread
-elif docker image inspect bananads-build:1 >/dev/null 2>&1; then
-    docker run --rm --platform linux/amd64 -v "$ROOT:/src:ro" -v "$APP/ui:/out" bananads-build:1 \
-        /workspace/bananads-lan-test/aarch64--glibc--stable-2025.08-1/bin/aarch64-buildroot-linux-gnu-gcc \
-        -O2 -Wall -Wextra \
-        -I/workspace/bananads-lan-test/aarch64--glibc--stable-2025.08-1/aarch64-buildroot-linux-gnu/sysroot/usr/include/libdrm \
-        -I/src/app/ui/third_party -o /out/bananads-lan \
-        /src/app/ui/main.c /src/app/ui/view.c /src/app/ui/pixel.c /src/app/ui/updater.c /src/app/ui/stb_impl.c \
-        /src/app/ui/pixel_sound.c /src/app/ui/pixel_image.c -ldrm -lm -ldl -lpthread
-else
-    echo "set CC to an aarch64 gcc with libdrm, or build where bananads-build:1 exists" >&2
-    exit 1
-fi
+mkdir -p "$APP/emu" "$ROOT/dist"
 
 cp "$BIN" "$APP/emu/bananads"
-cp "$ROOT/app/common.sh" "$ROOT/app/lan.sh" "$ROOT/app/status.sh" "$ROOT/app/run-emu" "$ROOT/app/tile.sh" \
-    "$ROOT/app/uninstall.sh" "$ROOT/app/update.py" "$ROOT/app/post-install.sh" "$ROOT/app/pre-remove.sh" \
-    "$ROOT/app/app.json" "$ROOT/app/manifest" "$APP/"
-cp "$ROOT/tiles/BananaDS LAN.sh" "$STAGE/BananaDS LAN.sh"
-# the Apps shelf's picture (tile.sh puts it in store/tiles/media/box)
-cp "$ROOT/packaging/store/tile.png" "$APP/tile.png"
-cp "$ROOT/INSTALL.txt" "$STAGE/INSTALL.txt"
-chmod 755 "$APP/emu/bananads" "$APP/ui/bananads-lan" "$APP/lan.sh" "$APP/pre-remove.sh" \
-    "$APP/status.sh" "$APP/run-emu" "$APP/tile.sh" "$APP/uninstall.sh" "$APP/update.py" "$APP/post-install.sh" \
-    "$STAGE/BananaDS LAN.sh"
+cp "$ROOT/app/common.sh" "$ROOT/app/lan.sh" "$ROOT/app/status.sh" "$ROOT/app/run-emu" \
+    "$ROOT/app/manifest" "$APP/"
+chmod 755 "$APP/emu/bananads" "$APP/lan.sh" "$APP/status.sh" "$APP/run-emu"
 
 ZIP=$ROOT/dist/bananads-lan-$ver.zip
 python3 - "$STAGE" "$ZIP" "$ROOT/dist/SHA256SUMS" << 'PY'
@@ -91,15 +56,14 @@ with open(sums, "w") as fh:
     fh.write("%s  %s\n" % (h.hexdigest(), os.path.basename(dest)))
 with zipfile.ZipFile(dest) as z:
     names = z.namelist()
-tops = set(n.split("/")[0] for n in names)
-want = {"bananads-lan", "BananaDS LAN.sh", "INSTALL.txt"}
-if tops != want or any(n.startswith("store/") or n.startswith("._") or "__MACOSX" in n for n in names):
-    sys.stderr.write("zip root is %s\n" % ", ".join(sorted(tops)))
-    sys.exit(1)
+    tops = set(n.split("/")[0] for n in names)
+    if tops != {"bananads-lan"}:
+        sys.stderr.write("zip root is %s\n" % ", ".join(sorted(tops)))
+        sys.exit(1)
 print(dest)
 PY
 if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$ZIP" "$APP/emu/bananads" "$APP/ui/bananads-lan"
+    sha256sum "$ZIP" "$APP/emu/bananads"
 else
-    shasum -a 256 "$ZIP" "$APP/emu/bananads" "$APP/ui/bananads-lan"
+    shasum -a 256 "$ZIP" "$APP/emu/bananads"
 fi

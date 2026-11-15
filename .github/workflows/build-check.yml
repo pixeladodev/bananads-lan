@@ -1,6 +1,8 @@
 name: build-check
 
 on:
+  push:
+    branches: [main, standalone-emulator]
   workflow_dispatch:
     inputs:
       draft:

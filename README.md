@@ -1,72 +1,43 @@
 # BananaDS LAN
 
-<p align="center">
-  <b>Local multiplayer for handheld games on BananaOS — same network, play together.</b>
-</p>
+Standalone **BananaDS** build for BananaOS handhelds with **local wireless multiplayer** on the same network. Games use this binary beside a launcher app (for example **Banana Lobby**); this repository does not ship an Apps-shelf UI.
 
-<p align="center">
-  <a href="#at-a-glance">At a glance</a> ·
-  <a href="#get-it-on-your-card">Get it on your card</a> ·
-  <a href="#remove-it">Remove it</a> ·
-  <a href="#tips">Tips</a>
-</p>
+**Devices:** Anbernic **RG DS** and **RG DS Plus**. Built and checked against **BananaOS 0.5.3.4** (also tested on **BananaOS 0.5.2.2** where the manifest pins allow).
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/readme-grid.png" alt="Library in grid layout, dark theme"><br>
-      <sub><b>Grid</b></sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/readme-list.png" alt="Library in list layout, light theme and Spanish UI"><br>
-      <sub><b>List</b></sub>
-    </td>
-  </tr>
-</table>
+## What is in a release zip
 
-## At a glance
+- `bananads-lan/emu/bananads` — the emulator binary (pinned `binary_sha` in `app/manifest`)
+- `run-emu`, `lan.sh`, `status.sh`, `common.sh` — runtime helpers launchers copy beside the binary
 
-- 📡 **Linked play** on your home network — local multiplayer is on by default for compatible games.
-- 📚 **In-app library** with play time, last played, saves, and the console IP for sessions.
-- 🌐 **English or Spanish** — follows the handheld language.
-- 💾 **Saves** on the card at `/data/saves/nds` (shared with the system save folder).
-- 🔄 **Updates** from inside the app when a release is available.
+## Build locally
 
-## Get it on your card
+From a Linux VM or container with network (same flow as CI):
 
-**Option A — one installer file**
+```bash
+docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+```
 
-1. Download **Install-BananaDS-LAN.sh** from the release.
-2. Copy it into **store/tiles** on the shared **banana** folder (do not replace the whole **store** folder).
-3. Reboot once, open **Apps**, and run the installer tile.
+Output: `dist/bananads-lan-<version>.zip` and `dist/SHA256SUMS`. A tagged release must match `binary_sha` in `app/manifest` or the build stops.
 
-**Option B — full zip**
+Draft compile (report sha only, no zip):
 
-1. Download the release zip and extract it.
-2. Copy **bananads-lan** into **store/apps** and **BananaDS LAN.sh** into **store/tiles** (do not replace the whole **store** folder).
-3. Reboot once, then open **Apps**.
+```bash
+docker run --rm --platform linux/amd64 -e BANANADS_LAN_ALLOW_DRAFT=1 -v "$PWD:/src" -w /src debian:trixie-slim bash build/release-build.sh
+```
 
-After either option, leave **Apps** and open **Apps** again so the list refreshes (temporary BananaOS limitation).
+`build/standalone-build.sh` builds the same sources without enforcing the manifest pin (for iteration).
 
-More steps (file sharing, copying from a computer, etc.) are in `INSTALL.txt`.
+`build/apply-patches.sh` applies the tree’s patch set when fetching sources inside `release-build.sh`.
 
-## Remove it
+## Layout
 
-1. Open the app, then press **START** to open **Settings**.
-2. Press **Y** for **Uninstall**, then **A** to confirm.
+| Path | Role |
+|------|------|
+| `app/manifest` | Version, pinned binary hash, source commits |
+| `app/run-emu` | How a host app launches a game on this binary |
+| `build/release-build.sh` | Fetch sources, compile, pack zip |
+| `build/package.sh` | Zip the binary and scripts after a successful compile |
 
-The app removes itself and its tile; games use the system emulator again.
+## License
 
-## Tips
-
-- Play on a strong network; a weak link can stutter.
-- Open the **same title** on each console and enter its multiplayer mode from the game.
-- For a more stable link between consoles, install [Direct Link](https://github.com/pixeladodev/bananaos-direct-link).
-
-## Built with
-
-Open source (GPL v3). On-screen UI in C; packaging scripts match the Store layout. See `SOURCE.md`, `build/package.sh`, and `build/selftest.sh`.
-
-## Credits
-
-**Pixelado Dev** — built with AI-assisted development, reviewed on real hardware when possible. Provided as-is; see `LICENSE`.
+GPL v3 (`LICENSE`). Built from the pinned commits recorded in `app/manifest`; see release notes for checksums.

@@ -173,6 +173,6 @@ if [ "$got" != "$WANT" ]; then
     exit 1
 fi
 
+bash "$ROOT/build/selftest.sh"
 export DRM_INC=$SYS/usr/include/libdrm
 "$ROOT/build/package.sh" /tmp/vmac/bananads
-sh "$ROOT/build/install-onefile.sh"

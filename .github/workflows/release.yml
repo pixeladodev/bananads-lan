@@ -28,14 +28,12 @@ jobs:
           ver=$(sed -n 's/^app_version=//p' app/manifest | head -n 1 | tr -d '\r')
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "Release $GITHUB_REF_NAME already exists on GitHub." >&2
-            echo "Delete it or use a new tag." >&2
             exit 1
           fi
           notes=$(mktemp)
           bash build/assemble-release-notes.sh > "$notes"
           gh release create "$GITHUB_REF_NAME" \
             "dist/bananads-lan-${ver}.zip" \
-            dist/Install-BananaDS-LAN.sh \
             dist/SHA256SUMS \
             --title "BananaDS LAN ${ver}" \
             --notes-file "$notes"

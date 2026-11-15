@@ -1,8 +1,5 @@
-# Shared by status.sh, lan.sh, post-install.sh, pre-remove.sh, uninstall.sh and tile.sh. Busybox ash.
-# The app directory is $APP, set by the caller.
-# The app plays DS games on its own BananaDS (emu/bananads, through run-emu). It never mounts anything over
-# /usr/bin/bananads and never changes the menu's launchers: BananaOS's BananaDS stays as it came, whatever its
-# version.
+# Shared by status.sh, lan.sh, and run-emu. Busybox ash.
+# The runtime directory is $APP, set by the caller (emu/bananads lives here).
 # Overrides for a local check, never set on a handheld:
 #   BANANADS_MP_CONF BANANADS_MP_ENV BANANADS_MP_OS BANANADS_MP_MODEL BANANADS_MP_BDCONF BANANADS_MP_NOMOUNT
 
