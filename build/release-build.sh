@@ -12,6 +12,13 @@ SD_SHA=$(manifest superdrastic)
 MELON_SHA=$(manifest melonds)
 WANT=$(manifest binary_sha)
 [ -n "$SD_SHA" ] && [ -n "$MELON_SHA" ] && [ -n "$WANT" ]
+_NCPU=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)
+_MAX_JOBS=$(( _NCPU * 8 / 10 ))
+[ "$_MAX_JOBS" -lt 1 ] && _MAX_JOBS=1
+JOBS=${BANANADS_BUILD_JOBS:-$_MAX_JOBS}
+[ "$JOBS" -gt "$_MAX_JOBS" ] && JOBS=$_MAX_JOBS
+[ "$JOBS" -lt 1 ] && JOBS=1
+export BANANADS_LTO_JOBS=${BANANADS_LTO_JOBS:-12}
 # BANANADS_LAN_ALLOW_DRAFT=1 (build-check with draft on, never the tag release):
 # compile even with placeholders, report the binary sha and keep the binary in dist/.
 DRAFT=${BANANADS_LAN_ALLOW_DRAFT:-}
@@ -127,7 +134,7 @@ EOF
         autoreconf -fi
         ./configure --host=aarch64-linux-gnu --prefix=/usr --libdir=/usr/lib \
             --enable-static --disable-shared
-        make -j"$(nproc)"
+        make -j"$JOBS"
         make install DESTDIR="$SYS"
     )
 fi
@@ -139,6 +146,11 @@ git -C /tmp/vmac/src init -q
 git -C /tmp/vmac/src remote add origin https://github.com/pixeladodev/SuperDrastic.git
 git -C /tmp/vmac/src fetch --depth 1 origin "$SD_SHA"
 git -C /tmp/vmac/src checkout --detach FETCH_HEAD
+if [ -n "${BANANADS_SD_OVERLAY:-}" ] && [ -d "$BANANADS_SD_OVERLAY/bananads" ]; then
+    rm -rf /tmp/vmac/src/bananads
+    cp -a "$BANANADS_SD_OVERLAY/bananads" /tmp/vmac/src/bananads
+    echo "draft overlay: $BANANADS_SD_OVERLAY/bananads"
+fi
 mkdir -p /tmp/vmac/src/melonds
 curl -fsSLo /tmp/melonds.tar.gz "https://github.com/melonDS-emu/melonDS/archive/$MELON_SHA.tar.gz"
 tar -xzf /tmp/melonds.tar.gz -C /tmp/vmac/src/melonds --strip-components=1
@@ -154,7 +166,7 @@ cmake -G Ninja -S /tmp/vmac/src/bananads -B /tmp/vmac/build \
     -DBANANADS_MELONDS_DIR=/tmp/vmac/src/melonds -DBANANADS_MELONDS_PATCHES=OFF -DBANANADS_JIT=melonds \
     -DBANANADS_SDL=OFF -DBANANADS_ALSA=ON -DBANANADS_KMS=ON -DBANANADS_LAN=ON \
     -DBANANADS_CPU=cortex-a55 -DBANANADS_LTO=ON
-ninja -C /tmp/vmac/build bananads
+ninja -C /tmp/vmac/build -j"$JOBS" bananads
 "$TC/bin/aarch64-linux-strip" --remove-section=.comment --remove-section=.note --strip-unneeded \
     -o /tmp/vmac/bananads /tmp/vmac/build/bananads
 got=$(sha256sum /tmp/vmac/bananads | awk '{print $1}')

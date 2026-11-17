@@ -19,6 +19,13 @@ manifest() { sed -n "s/^$1=//p" "$ROOT/app/manifest" | head -n 1 | tr -d '\r'; }
 SD_SHA=${BANANADS_SD_SHA:-$(manifest superdrastic)}
 MELON_SHA=$(manifest melonds)
 [ -n "$SD_SHA" ] && [ -n "$MELON_SHA" ]
+_NCPU=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)
+_MAX_JOBS=$(( _NCPU * 8 / 10 ))
+[ "$_MAX_JOBS" -lt 1 ] && _MAX_JOBS=1
+JOBS=${BANANADS_BUILD_JOBS:-$_MAX_JOBS}
+[ "$JOBS" -gt "$_MAX_JOBS" ] && JOBS=$_MAX_JOBS
+[ "$JOBS" -lt 1 ] && JOBS=1
+export BANANADS_LTO_JOBS=${BANANADS_LTO_JOBS:-12}
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
@@ -124,7 +131,7 @@ EOF
         autoreconf -fi
         ./configure --host=aarch64-linux-gnu --prefix=/usr --libdir=/usr/lib \
             --enable-static --disable-shared
-        make -j"$(nproc)"
+        make -j"$JOBS"
         make install DESTDIR="$SYS"
     )
 fi
@@ -151,7 +158,7 @@ cmake -G Ninja -S /tmp/vmac/src/bananads -B /tmp/vmac/build \
     -DBANANADS_MELONDS_DIR=/tmp/vmac/src/melonds -DBANANADS_MELONDS_PATCHES=OFF -DBANANADS_JIT=melonds \
     -DBANANADS_SDL=OFF -DBANANADS_ALSA=ON -DBANANADS_KMS=ON -DBANANADS_LAN=ON \
     -DBANANADS_CPU=cortex-a55 -DBANANADS_LTO=ON
-ninja -C /tmp/vmac/build bananads
+ninja -C /tmp/vmac/build -j"$JOBS" bananads
 "$TC/bin/aarch64-linux-strip" --remove-section=.comment --remove-section=.note --strip-unneeded \
     -o /tmp/vmac/bananads /tmp/vmac/build/bananads
 got=$(sha256sum /tmp/vmac/bananads | awk '{print $1}')
