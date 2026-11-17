@@ -13,7 +13,12 @@
 APP=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 EMU=$APP/emu/bananads
 ROM=${1:-}
-[ -n "$ROM" ] && [ -f "$ROM" ] || { echo "run-emu: no game at '$ROM'" >&2; exit 2; }
+# @firmware: the DS menu (DS Download Play) from the BIOS and firmware in /data/bios, the cart slot empty
+if [ "$ROM" = @firmware ]; then
+    export BANANADS_BOOT=firmware
+else
+    [ -n "$ROM" ] && [ -f "$ROM" ] || { echo "run-emu: no game at '$ROM'" >&2; exit 2; }
+fi
 [ -x "$EMU" ] || chmod a+x "$EMU" 2>/dev/null
 [ -x "$EMU" ] || { echo "run-emu: $EMU is missing" >&2; exit 3; }
 SYS=/usr/libexec/banana/run-bananads
@@ -59,7 +64,7 @@ export BANANADS_FRONTEND=kms BANANADS_SAVE_DIR=/data/saves/nds BANANADS_STATE_DI
 export BANANADS_RENDER_RENDERER=gengis
 [ -f $LOGS/bananads.log ] && mv -f $LOGS/bananads.log $LOGS/bananads.1.log
 export BANANADS_LOG_FILE=$LOGS/bananads.log
-[ -x /usr/libexec/banana/nds-saves ] && /usr/libexec/banana/nds-saves "$ROM"
+[ "$ROM" = @firmware ] || { [ -x /usr/libexec/banana/nds-saves ] && /usr/libexec/banana/nds-saves "$ROM"; }
 case "$ROM" in
 *.zip|*.ZIP) echo "run-emu: a zipped game needs BananaOS's launcher" >&2; exit 4 ;;
 esac
