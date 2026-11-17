@@ -162,7 +162,7 @@ cmake -G Ninja -S /tmp/vmac/src/bananads -B /tmp/vmac/build \
     -DCMAKE_TOOLCHAIN_FILE=/tmp/vmac/src/bananads/cmake/bootlin-a55.cmake -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_C_FLAGS="$F" -DCMAKE_CXX_FLAGS="$F" -DCMAKE_ASM_FLAGS="$F" \
-    -DCMAKE_EXE_LINKER_FLAGS="-mcpu=cortex-a55 -Wl,-z,relro -fPIE -pie" \
+    -DCMAKE_EXE_LINKER_FLAGS="-mcpu=cortex-a55 -Wl,-z,relro -fPIE -pie -static-libstdc++ -static-libgcc" \
     -DBANANADS_MELONDS_DIR=/tmp/vmac/src/melonds -DBANANADS_MELONDS_PATCHES=OFF -DBANANADS_JIT=melonds \
     -DBANANADS_SDL=OFF -DBANANADS_ALSA=ON -DBANANADS_KMS=ON -DBANANADS_LAN=ON \
     -DBANANADS_CPU=cortex-a55 -DBANANADS_LTO=ON
@@ -177,6 +177,11 @@ if [ "$DRAFT" = 1 ]; then
     echo "draft build: binary sha is $got (manifest has $WANT)"
     [ "$got" = "$WANT" ] && echo "draft build: it matches binary_sha" || echo "draft build: it does NOT match binary_sha"
     exit 0
+fi
+"$TC/bin/aarch64-linux-readelf" -d /tmp/vmac/bananads | grep -E 'NEEDED|RPATH|RUNPATH' || true
+if "$TC/bin/aarch64-linux-readelf" -d /tmp/vmac/bananads | grep -q 'libstdc++\|libgcc_s'; then
+    echo "release stopped: libstdc++ or libgcc_s is still a shared dependency" >&2
+    exit 1
 fi
 if [ "$got" != "$WANT" ]; then
     echo "binary sha is $got" >&2
