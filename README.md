@@ -1,6 +1,6 @@
 # BananaDS LAN
 
-Standalone **BananaDS** build for BananaOS handhelds with **local wireless multiplayer** on the same network. You do not install this repository on the shelf. It ships inside **[Banana Lobby](https://github.com/pixeladodev/banana-lobby)** at package time; play and browse your library there.
+Standalone **BananaDS** build for BananaOS handhelds with **local wireless multiplayer** on the same network. You do not install this repository on the shelf. It ships inside **[Banana Party](https://github.com/pixeladodev/banana-party)** at package time; play and browse your library there.
 
 **Devices:** Anbernic **RG DS** and **RG DS Plus**. Built and checked against **BananaOS 0.5.3.4** (also tested on **BananaOS 0.5.2.2** where the manifest pins allow).
 

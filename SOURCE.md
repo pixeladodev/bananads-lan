@@ -20,7 +20,7 @@ Reapply this when rebasing onto official BananaDS. It is in the pinned SuperDras
 
 The resume save state is slot 0. It is not one of the 8 menu slots. BananaOS writes it on quit and loads it on open, through `resume.on_quit` and `resume.on_start`.
 
-Banana Lobby is one process (`wifi.lobbyctl_dir`). That process must not save or resume slot 0:
+Banana Party is one process (`wifi.lobbyctl_dir`). That process must not save or resume slot 0:
 
 - F+START with a lobby quits without saving. Without a lobby, F+START saves, which is the official default.
 - "Quit the game?" still has three options: Keep playing, Save and quit (A by default), and Quit without saving. With a lobby, Save and quit is drawn dim and A does not choose it. Quit without saving stays on X.
@@ -31,4 +31,4 @@ A resume saved inside the room would make the next game, or the same game opened
 
 The in-game menu's wide row under the six tiles is Local multiplayer (`src/menu.c`). Brightness stays on Quick settings, and Local multiplayer is no longer a Quick settings row. A on that row opens the same Local multiplayer page. Back from it returns to the six tiles.
 
-Auto discovery is Banana Lobby's setting (`ui.conf` `discover`, and `lobby/discover`, default on). Opening a game while the room is Off and discovery is on asks for Auto for that game only (`src/main.cpp`). `lan_apply_one` does not write Auto into `wifi.local`. Turning discovery off leaves that game Off until someone changes it in BananaDS LAN's in-game menu. The Spanish label Multijugador local is in `src/lang.c` until the language pack ships that line. Host and Join from the menu are still written, as before. When the game ends, an Auto session goes back to Off.
+Auto discovery is Banana Party's setting (`ui.conf` `discover`, and `lobby/discover`, default on). Opening a game while the room is Off and discovery is on asks for Auto for that game only (`src/main.cpp`). `lan_apply_one` does not write Auto into `wifi.local`. Turning discovery off leaves that game Off until someone changes it in BananaDS LAN's in-game menu. The Spanish label Multijugador local is in `src/lang.c` until the language pack ships that line. Host and Join from the menu are still written, as before. When the game ends, an Auto session goes back to Off.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pack the pinned emulator runtime for Banana Lobby (and other consumers).
+# Pack the pinned emulator runtime for Banana Party (and other consumers).
 # Zip root: bananads-lan/ with emu/bananads, common.sh, run-emu, lan.sh, status.sh, manifest.
 #   ./build/package.sh [/path/to/bananads]
 set -eu
