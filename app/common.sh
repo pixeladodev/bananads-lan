@@ -71,8 +71,8 @@ mp_lan_set() {
     mv -f "$tmp" "$MP_BDCONF"
 }
 
-# ---- what versions before 0.4.0 left behind ----
-# They mounted bin/bananads over /usr/bin/bananads and put an [nds] launcher between markers in systems.conf (and
+# ---- what older test installs left behind ----
+# Some mounted bin/bananads over /usr/bin/bananads and put an [nds] launcher between markers in systems.conf (and
 # once a block in bananads.env). All of it comes off: the mount (the app's folder may be bananads-lan.old by now,
 # during an update, or deleted), the markers' blocks, the old wrapper.
 
