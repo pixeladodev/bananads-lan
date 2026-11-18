@@ -2,7 +2,7 @@
 
 BananaDS in this app is built from:
 
-- https://github.com/pixeladodev/SuperDrastic/commit/d4c311489f4ea3fd6b51dc13a56ef3f3c7950c94 (branch `firmware-boot`: BananaDS from JorreFog/SuperDrastic 5ecd2f7 with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the lobby session, booting the DS firmware for DS Download Play, and the DS's MAC from `/etc/machine-id` in the generated and the user's firmware). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
+- https://github.com/pixeladodev/SuperDrastic/commit/d4c311489f4ea3fd6b51dc13a56ef3f3c7950c94 (branch `firmware-boot`: BananaDS from JorreFog/SuperDrastic 5ecd2f7 with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the Party session, booting the DS firmware for DS Download Play, and the DS's MAC from `/etc/machine-id` in the generated and the user's firmware). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
 - melonDS https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 - the melonDS patches in that SuperDrastic tree, `bananads/patches/melonds/`
 
@@ -22,13 +22,15 @@ The resume save state is slot 0. It is not one of the 8 menu slots. BananaOS wri
 
 Banana Party is one process (`wifi.lobbyctl_dir`). That process must not save or resume slot 0:
 
-- F+START with a lobby quits without saving. Without a lobby, F+START saves, which is the official default.
-- "Quit the game?" still has three options: Keep playing, Save and quit (A by default), and Quit without saving. With a lobby, Save and quit is drawn dim and A does not choose it. Quit without saving stays on X.
-- Opening a game with a lobby starts fresh, without loading slot 0. Without a lobby, it resumes, as BananaOS's emulator does.
-- SIGUSR1 (the console powers off) still writes slot 0. That is not leaving the room.
+- F+START in the Party process quits without saving. Outside it, F+START saves, which is the official default.
+- "Quit the game?" still has three options: Keep playing, Save and quit (A by default), and Quit without saving. In the Party process, Save and quit is drawn dim and A does not choose it. Quit without saving stays on X.
+- Opening a game in the Party process starts fresh, without loading slot 0. Outside it, it resumes, as BananaOS's emulator does.
+- SIGUSR1 (the console powers off) still writes slot 0. That is not leaving the Party.
 
-A resume saved inside the room would make the next game, or the same game opened again, continue a session that no longer matches the room. The 8 menu slots are unchanged.
+A resume saved inside the Party would make the next game, or the same game opened again, continue a session that no longer matches the Party. The 8 menu slots are unchanged.
 
 The in-game menu's wide row under the six tiles is Local multiplayer (`src/menu.c`). Brightness stays on Quick settings, and Local multiplayer is no longer a Quick settings row. A on that row opens the same Local multiplayer page. Back from it returns to the six tiles.
 
-Auto discovery is Banana Party's setting (`ui.conf` `discover`, and `lobby/discover`, default on). Opening a game while the room is Off and discovery is on asks for Auto for that game only (`src/main.cpp`). `lan_apply_one` does not write Auto into `wifi.local`. Turning discovery off leaves that game Off until someone changes it in BananaDS LAN's in-game menu. The Spanish label Multijugador local is in `src/lang.c` until the language pack ships that line. Host and Join from the menu are still written, as before. When the game ends, an Auto session goes back to Off.
+Auto discovery is Banana Party's setting (`ui.conf` `discover`, and `lobby/discover`, default on). Opening a game while the Party is Off and discovery is on asks for Auto for that game only (`src/main.cpp`). Opening the DS menu (`@firmware`, DS Download Play) the same way asks for Auto Join instead. `lan_apply_one` does not write Auto into `wifi.local`. Turning discovery off leaves that game Off until someone changes it in BananaDS LAN's in-game menu. The Spanish lines for Multijugador local, Auto Join and the Party messages are in `src/lang.c` until the language pack ships them. Host and Join from the menu are still written, as before. When the game ends, an Auto session goes back to Off.
+
+Auto Join (Spanish: Unirse automáticamente) is a Local multiplayer mode: `wifi.local = autojoin`, or Auto Join on the in-game menu's Mode row. It is Auto that never hosts. It looks for a host and joins it; where Auto would host, it keeps looking. Use it on a console that should only receive, like the DS menu's Download Play. The menu does not write it into `wifi.local`, like Auto.
