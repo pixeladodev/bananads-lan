@@ -2,7 +2,7 @@
 
 BananaDS in this app is built from:
 
-- https://github.com/pixeladodev/SuperDrastic/commit/d4c311489f4ea3fd6b51dc13a56ef3f3c7950c94 (branch `firmware-boot`: BananaDS from JorreFog/SuperDrastic 5ecd2f7 with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the Party session, booting the DS firmware for DS Download Play, and the DS's MAC from `/etc/machine-id` in the generated and the user's firmware). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
+- https://github.com/pixeladodev/SuperDrastic/commit/87f616192d69468e629d122bb5ef273d3501bce3 (branch `firmware-boot`: BananaDS from JorreFog/SuperDrastic 5ecd2f7 with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the Party session, booting the DS firmware for DS Download Play, the DS's MAC from `/etc/machine-id` in the generated and the user's firmware, and Auto Join). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
 - melonDS https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 - the melonDS patches in that SuperDrastic tree, `bananads/patches/melonds/`
 
