@@ -2,7 +2,7 @@
 
 BananaDS in this app is built from:
 
-- https://github.com/pixeladodev/SuperDrastic/commit/87f616192d69468e629d122bb5ef273d3501bce3 (branch `bananads-lan`: BananaDS from JorreFog/SuperDrastic 5ecd2f7 with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the Party session, booting the DS firmware for DS Download Play, the DS's MAC from `/etc/machine-id` in the generated and the user's firmware, and Auto Join). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
+- https://github.com/pixeladodev/SuperDrastic/commit/40804cf244f100c579b7d342bd01a407d15b50d7 (branch `bananads-lan`: BananaDS from JorreFog/SuperDrastic `e54aaa8` — `5ecd2f7` plus the two upstream commits that BananaOS 0.5.3.5 and later package: `cc145c8` (the in-game menu's clicks follow BananaOS's Menu sounds) and `e54aaa8` (the mic turned up 10x before the gate) — merged with the three BananaDS patches the system applies at build time already committed, then Local multiplayer and the saved Nintendo WFC settings, the Party session, booting the DS firmware for DS Download Play, the DS's MAC from `/etc/machine-id` in the generated and the user's firmware, and Auto Join). The release build fetches this commit. `BANANADS_SD_OVERLAY` is only for a draft that is not committed yet.
 - melonDS https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427
 - the melonDS patches in that SuperDrastic tree, `bananads/patches/melonds/`
 
@@ -16,7 +16,9 @@ This repository is GPLv3 (`LICENSE`) because it is distributed with BananaDS, wh
 
 ## Our changes
 
-Reapply this when rebasing onto official BananaDS. It is in the pinned SuperDrastic commit (`src/main.cpp`, `src/frontend_kms.cpp`, `src/menu.c`, `src/menu.h`, `src/lang.c`, `src/alsa.cpp`, `src/lobbyctl.cpp`). It is not a melonDS patch.
+Reapply this when merging or rebasing onto official BananaDS. It is in the pinned SuperDrastic commit (`src/main.cpp`, `src/frontend_kms.cpp`, `src/menu.c`, `src/menu.h`, `src/lang.c`, `src/alsa.cpp`, `src/lobbyctl.cpp`). It is not a melonDS patch.
+
+The upstream pin was merged, not rebased, on 19-nov-2026 (`40804cf`, parents `87f6161` and `e54aaa8`): the merge was clean and every item below was still there afterwards. The three BananaDS patches the system applies at build time (the help line above the Back button, the remappable pad buttons and the left stick's 45-degree octants) are committed in our tree, so they are not applied again on top of it.
 
 The resume save state is slot 0. It is not one of the 8 menu slots. BananaOS writes it on quit and loads it on open, through `resume.on_quit` and `resume.on_start`.
 
